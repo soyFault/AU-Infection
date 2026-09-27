@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>FauloInfection</AssemblyName>
+    <RootNamespace>FauloInfection</RootNamespace>
+  </PropertyGroup>
+
+  <Import Project="..\AmongUs.props" />
+</Project>

@@ -1,0 +1,19 @@
+# Rider / JetBrains
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+# Build
+bin/
+obj/
+
+# Local package cache / local game files
+packages.local/
+
+# User/local settings
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
