@@ -1,0 +1,15 @@
+{
+  "Name": "Faulo Infection",
+  "Description": "An Infection game mode for Among Us, built with MiraAPI.",
+  "Tags": [
+    "mods"
+  ],
+  "Icon": "FauloInfection.Resources.FauloInfectionIcon.png",
+  "License": "GPLv3",
+  "Authors": [
+    "Fault"
+  ],
+  "Links": {
+    "Source": "https://github.com/soyFault/AU-Infection"
+  }
+}

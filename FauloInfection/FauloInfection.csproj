@@ -4,5 +4,10 @@
     <RootNamespace>FauloInfection</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\**\*.*" />
+    <EmbeddedResource Include="modinfo.json" />
+  </ItemGroup>
+
   <Import Project="..\AmongUs.props" />
 </Project>
