@@ -3,4 +3,5 @@
     <string name="FauloInfection.GameMode.Infection.Name">Infection</string>
     <string name="FauloInfection.GameMode.Infection.Description">Infect every crewmate before the timer expires.</string>
     <string name="FauloInfection.Modifier.Infected.Name">Infected</string>
+    <string name="FauloInfection.Button.Infect">Infect</string>
 </resources>

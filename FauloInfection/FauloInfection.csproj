@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\Locale\*.xml" />
+    <EmbeddedResource Include="Resources\Buttons\*.png" />
     <EmbeddedResource Include="modinfo.json" />
   </ItemGroup>
 
