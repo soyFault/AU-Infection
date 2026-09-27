@@ -1,4 +1,6 @@
 using FauloInfection.GameModes;
+using FauloInfection.Options;
+using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.Modifiers;
 using MiraAPI.Utilities;
@@ -21,10 +23,22 @@ public static class InfectionManager
     private static readonly Dictionary<byte, float> NextInfectAt = [];
 
     /// <summary>
+    /// Stores when each infected player is allowed to kill again.
+    /// Guarda cuándo puede volver a matar cada jugador infectado.
+    /// </summary>
+    private static readonly Dictionary<byte, float> NextKillAt = [];
+
+    /// <summary>
     /// Shared infection cooldown used by the button and host validation.
     /// Cooldown compartido usado por el botón y la validación del host.
     /// </summary>
     public const float InfectCooldownSeconds = 5f;
+
+    /// <summary>
+    /// Shared kill cooldown used by infected players.
+    /// Cooldown compartido de asesinato usado por los infectados.
+    /// </summary>
+    public const float InfectedKillCooldownSeconds = 1f;
 
     /// <summary>
     /// Indica si Infección es actualmente el modo de juego activo.
@@ -125,24 +139,31 @@ public static class InfectionManager
         // Clear cooldown data left over from a previous round.
         // Limpia los cooldowns que hayan quedado de una ronda anterior.
         NextInfectAt.Clear();
+        NextKillAt.Clear();
 
         if (AmongUsClient.Instance == null ||
             !AmongUsClient.Instance.AmHost)
         {
             return;
         }
-        
+
         // Give every initially infected player the normal infection cooldown
         // before they are allowed to infect someone.
         // Da a cada infectado inicial el cooldown normal antes de permitirle
         // infectar a otro jugador.
-        var initialReadyAt =
+        var initialInfectReadyAt =
             Time.time + InfectCooldownSeconds;
+
+        var initialKillReadyAt =
+            Time.time + InfectedKillCooldownSeconds;
 
         foreach (var infected in GetInfected())
         {
             NextInfectAt[infected.PlayerId] =
-                initialReadyAt;
+                initialInfectReadyAt;
+
+            NextKillAt[infected.PlayerId] =
+                initialKillReadyAt;
         }
 
         // Only the host validates the initial Infection team composition.
@@ -152,7 +173,7 @@ public static class InfectionManager
             $"{GetInfected().Count} infected, " +
             $"{RemainingSurvivors} survivors.");
     }
-    
+
     /// <summary>
     /// Validates an infection attempt on the host before changing team state.
     /// Valida un intento de infección en el host antes de modificar el estado de los equipos.
@@ -255,6 +276,111 @@ public static class InfectionManager
         // MiraAPI sincroniza este modificador con todos los clientes.
         target!.RpcAddModifier<InfectedModifier>();
 
+        // EN: A newly infected player must wait before their first kill.
+        // ES: Un jugador recién infectado debe esperar antes de su primer asesinato.
+        NextKillAt[target!.PlayerId] =
+            Time.time + InfectedKillCooldownSeconds;
+
+        return true;
+    }
+
+    /// <summary>
+    /// EN: Determines whether an infected player is allowed to kill this target.
+    /// ES: Determina si un jugador infectado puede matar a este objetivo.
+    /// </summary>
+    public static bool CanKillTarget(
+        PlayerControl? source,
+        PlayerControl? target)
+    {
+        if (!IsActive ||
+            !IsValidLivingPlayer(source) ||
+            !IsValidLivingPlayer(target) ||
+            source == target ||
+            !IsInfected(source) ||
+            source!.inVent ||
+            target!.inVent)
+        {
+            return false;
+        }
+
+        var options =
+            OptionGroupSingleton<InfectionOptions>.Instance;
+
+        // EN: Killing can be disabled completely for infected players.
+        // ES: Los asesinatos pueden desactivarse completamente para los infectados.
+        if (!options.AllowInfectedKills.Value)
+        {
+            return false;
+        }
+
+        // EN: Without Friendly Fire, infected players cannot kill teammates.
+        // ES: Sin Fuego Amigo, los infectados no pueden matar a sus compañeros.
+        if (!options.FriendlyFire.Value &&
+            IsInfected(target))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// EN: Host-authoritative kill attempt used by converted infected players.
+    /// ES: Intento de asesinato autoritativo del host usado por infectados convertidos.
+    /// </summary>
+    public static bool TryKill(
+        PlayerControl? source,
+        PlayerControl? target)
+    {
+        if (AmongUsClient.Instance == null ||
+            !AmongUsClient.Instance.AmHost ||
+            !CanKillTarget(source, target))
+        {
+            return false;
+        }
+
+        if (NextKillAt.TryGetValue(
+                source!.PlayerId,
+                out var readyAt) &&
+            Time.time < readyAt)
+        {
+            return false;
+        }
+
+        var distance =
+            source!.Data!.Role!.GetAbilityDistance();
+        
+        // Recalculate the target on the host before accepting the kill.
+        // Recalcula el objetivo en el host antes de aceptar el asesinato.
+        var validatedTarget =
+            source.GetClosestPlayer(
+                includeImpostors: true,
+                distance: distance,
+                ignoreColliders: false,
+                includeGhosts: false,
+                predicate: player =>
+                    player.PlayerId == target!.PlayerId &&
+                    CanKillTarget(source, player));
+
+        if (validatedTarget == null ||
+            validatedTarget.PlayerId != target!.PlayerId)
+        {
+            return false;
+        }
+
+        NextKillAt[source.PlayerId] =
+            Time.time + InfectedKillCooldownSeconds;
+
+        // EN: Use the normal Among Us murder RPC so death animations,
+        // bodies and the Hide & Seek death notification remain intact.
+        // ES: Usa el RPC normal de asesinato de Among Us para conservar
+        // animaciones, cadáveres y la notificación de muerte de Hide & Seek.
+        source.RpcMurderPlayer(target, true);
+
+        Logger<InfectionPlugin>.Info(
+            $"Infection kill: " +
+            $"{source.PlayerId} -> {target.PlayerId}.");
+
         return true;
     }
 
@@ -265,6 +391,7 @@ public static class InfectionManager
     public static int Reset()
     {
         NextInfectAt.Clear();
+        NextKillAt.Clear();
 
         if (AmongUsClient.Instance == null ||
             !AmongUsClient.Instance.AmHost)

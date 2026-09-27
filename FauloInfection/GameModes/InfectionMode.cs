@@ -1,4 +1,6 @@
 using FauloInfection.Infection;
+using FauloInfection.Options;
+using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using UnityEngine;
 
@@ -23,18 +25,42 @@ public sealed class InfectionMode : HideAndSeekMode
         "FauloInfection.GameMode.Infection.Description";
 
     public override Color Color => InfectionColor;
-    
+
     // Inicializa el estado de Infection solo después de asignar todos los roles,
     // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
-    
+    //
     // Initialize Infection state only after all player roles have been assigned,
     // so the initial Seeker can be reliably identified from their base role.
-
     public override void PostAssignRoles(
         LogicRoleSelectionNormal instance)
     {
         base.PostAssignRoles(instance);
 
         InfectionManager.InitializeRound();
+    }
+    
+    public override void HudUpdate(HudManager instance)
+    {
+        base.HudUpdate(instance);
+
+        var localPlayer = PlayerControl.LocalPlayer;
+
+        if (localPlayer == null ||
+            localPlayer.Data?.Role == null ||
+            !localPlayer.Data.Role.IsImpostor)
+        {
+            return;
+        }
+
+        // El Seeker inicial usa el botón Kill vanilla.
+        // Si los asesinatos están desactivados, mantenemos ese botón oculto
+        // incluso si Among Us refresca el HUD e intenta mostrarlo otra vez.
+        if (!OptionGroupSingleton<InfectionOptions>
+                .Instance
+                .AllowInfectedKills
+                .Value)
+        {
+            instance.KillButton.ToggleVisible(false);
+        }
     }
 }
