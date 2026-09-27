@@ -3,6 +3,7 @@ using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using MiraAPI;
+using MiraAPI.Translation;
 using MiraAPI.PluginLoading;
 using Reactor;
 using FauloInfection.Patches;
@@ -29,6 +30,11 @@ public sealed class InfectionPlugin : BasePlugin, IMiraPlugin
     public string CustomOptionMenuNameTwo => Name;
 
     public ConfigFile GetConfigFile() => Config;
+    
+    public InfectionPlugin()
+    {
+        MiraLocaleManager.Register(Id, "FauloInfection");
+    }
 
     public override void Load()
     {

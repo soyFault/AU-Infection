@@ -9,5 +9,9 @@
     <EmbeddedResource Include="modinfo.json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Resources\Buttons\" />
+  </ItemGroup>
+
   <Import Project="..\AmongUs.props" />
 </Project>
