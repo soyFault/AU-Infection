@@ -1,9 +1,11 @@
 using FauloInfection.Assets;
 using FauloInfection.GameModes;
 using FauloInfection.Infection;
+using FauloInfection.Networking;
 using MiraAPI.Hud;
 using MiraAPI.Utilities;
 using MiraAPI.Utilities.Assets;
+using Reactor.Networking.Rpc;
 using UnityEngine;
 
 namespace FauloInfection.Buttons;
@@ -12,8 +14,9 @@ public sealed class InfectButton : CustomActionButton<PlayerControl>
 {
     public override string Name =>
         "FauloInfection.Button.Infect";
-
-    public override float Cooldown => 5f;
+    
+    public override float Cooldown =>
+        InfectionManager.InfectCooldownSeconds;
 
     public override ButtonLocation Location { get; set; } =
         ButtonLocation.BottomRight;
@@ -30,8 +33,8 @@ public sealed class InfectButton : CustomActionButton<PlayerControl>
             return null;
         }
 
-        // EN: Find the closest valid crewmate within the role's normal ability range.
-        // ES: Busca al tripulante válido más cercano dentro del alcance normal de la habilidad.
+        // Find the closest valid crewmate within the role's normal ability range.
+        // Busca al tripulante válido más cercano dentro del alcance normal de la habilidad.
         return localPlayer.GetClosestPlayer(
             includeImpostors: true,
             distance: Distance,
@@ -84,6 +87,36 @@ public sealed class InfectButton : CustomActionButton<PlayerControl>
 
     protected override void OnClick()
     {
-        // Nothing here yet, just testing the button
+        var source = PlayerControl.LocalPlayer;
+        var target = Target;
+
+        if (source == null ||
+            target == null)
+        {
+            return;
+        }
+
+        // The host validates infections directly.
+        // El host valida las infecciones directamente.
+        if (AmongUsClient.Instance != null &&
+            AmongUsClient.Instance.AmHost)
+        {
+            InfectionManager.TryInfect(
+                source,
+                target);
+        }
+        // Non-host clients send only the target ID to the host.
+        // Los clientes que no son host envían únicamente el ID del objetivo al host.
+        else if (AmongUsClient.Instance != null)
+        {
+            Rpc<InfectRequestRpc>.Instance.SendTo(
+                source,
+                AmongUsClient.Instance.HostId,
+                target.PlayerId);
+        }
+
+        // Clear the selected target after the action is attempted.
+        // Limpia el objetivo seleccionado después de intentar la acción.
+        ResetTarget();
     }
 }

@@ -1,20 +1,31 @@
-using System.Collections.Generic;
-using System.Linq;
 using FauloInfection.GameModes;
 using MiraAPI.GameModes;
 using MiraAPI.Modifiers;
+using MiraAPI.Utilities;
 using Reactor.Utilities;
+using UnityEngine;
 
 namespace FauloInfection.Infection;
 
 /// <summary>
 /// Determina qué jugadores pertenecen al equipo infectado
-/// y cuáles siguen siendo supervivientes. 
+/// y cuáles siguen siendo supervivientes.
 /// This is probably an unoptimized mess, I am still learning
 /// </summary>
-
 public static class InfectionManager
 {
+    /// <summary>
+    /// Stores when each infected player is allowed to infect again.
+    /// Guarda cuándo puede volver a infectar cada jugador infectado.
+    /// </summary>
+    private static readonly Dictionary<byte, float> NextInfectAt = [];
+
+    /// <summary>
+    /// Shared infection cooldown used by the button and host validation.
+    /// Cooldown compartido usado por el botón y la validación del host.
+    /// </summary>
+    public const float InfectCooldownSeconds = 5f;
+
     /// <summary>
     /// Indica si Infección es actualmente el modo de juego activo.
     /// Infection is the active gamemode
@@ -24,7 +35,7 @@ public static class InfectionManager
 
     /// <summary>
     /// Determina si un jugador pertenece actualmente al equipo infectado.
-    /// My brain is to fried to translate the comments, I'll do it later
+    /// My brain is too fried to translate the comments, I'll do it later
     /// </summary>
     public static bool IsInfected(PlayerControl? player)
     {
@@ -111,40 +122,219 @@ public static class InfectionManager
     /// </summary>
     public static void InitializeRound()
     {
+        // Clear cooldown data left over from a previous round.
+        // Limpia los cooldowns que hayan quedado de una ronda anterior.
+        NextInfectAt.Clear();
+
         if (AmongUsClient.Instance == null ||
             !AmongUsClient.Instance.AmHost)
         {
             return;
         }
         
-        // Only the host validates the initial Infection team composition. 
+        // Give every initially infected player the normal infection cooldown
+        // before they are allowed to infect someone.
+        // Da a cada infectado inicial el cooldown normal antes de permitirle
+        // infectar a otro jugador.
+        var initialReadyAt =
+            Time.time + InfectCooldownSeconds;
+
+        foreach (var infected in GetInfected())
+        {
+            NextInfectAt[infected.PlayerId] =
+                initialReadyAt;
+        }
+
+        // Only the host validates the initial Infection team composition.
         // Solo el host valida la composición inicial de los equipos de Infection.
         Logger<InfectionPlugin>.Info(
             $"Infection state ready: " +
             $"{GetInfected().Count} infected, " +
             $"{RemainingSurvivors} survivors.");
     }
+    
+    /// <summary>
+    /// Validates an infection attempt on the host before changing team state.
+    /// Valida un intento de infección en el host antes de modificar el estado de los equipos.
+    /// </summary>
+    /// <returns>
+    /// True if the host accepted and applied the infection.
+    /// </returns>
+    public static bool TryInfect(
+        PlayerControl? source,
+        PlayerControl? target)
+    {
+        // The host is the only authority allowed to approve infections.
+        // El host es la única autoridad que puede aprobar infecciones.
+        if (AmongUsClient.Instance == null ||
+            !AmongUsClient.Instance.AmHost ||
+            !IsActive ||
+            !IsValidLivingPlayer(source) ||
+            !IsValidLivingPlayer(target) ||
+            source == target ||
+            !IsInfected(source) ||
+            IsInfected(target) ||
+            source!.inVent ||
+            target!.inVent)
+        {
+            return false;
+        }
+
+        // Reject the request if this infected player is still on cooldown.
+        // Rechaza la solicitud si este jugador infectado todavía está en cooldown.
+        if (NextInfectAt.TryGetValue(
+                source.PlayerId,
+                out var readyAt) &&
+            Time.time < readyAt)
+        {
+            return false;
+        }
+
+        var distance =
+            source.Data.Role.GetAbilityDistance();
+
+        // Recalculate the target on the host to verify range and line of sight.
+        // Recalcula el objetivo en el host para verificar alcance y línea de visión.
+        var validatedTarget =
+            source.GetClosestPlayer(
+                includeImpostors: true,
+                distance: distance,
+                ignoreColliders: false,
+                includeGhosts: false,
+                predicate: player =>
+                    player.PlayerId == target.PlayerId &&
+                    !IsInfected(player));
+
+        if (validatedTarget == null ||
+            validatedTarget.PlayerId != target.PlayerId)
+        {
+            return false;
+        }
+
+        if (!Infect(target))
+        {
+            return false;
+        }
+
+        // Both the source and newly infected player receive a fresh cooldown.
+        // Tanto el infectado original como el recién infectado reciben un nuevo cooldown.
+        var nextReadyAt =
+            Time.time + InfectCooldownSeconds;
+
+        NextInfectAt[source.PlayerId] =
+            nextReadyAt;
+
+        NextInfectAt[target.PlayerId] =
+            nextReadyAt;
+
+        Logger<InfectionPlugin>.Info(
+            $"Infection spread: " +
+            $"{source.PlayerId} -> {target.PlayerId}. " +
+            $"{GetInfected().Count} infected, " +
+            $"{RemainingSurvivors} survivors.");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Applies the synchronized infection marker to a player.
+    /// Aplica el marcador sincronizado de infección a un jugador.
+    /// </summary>
+    public static bool Infect(PlayerControl? target)
+    {
+        if (!IsActive ||
+            !IsValidLivingPlayer(target) ||
+            AmongUsClient.Instance == null ||
+            !AmongUsClient.Instance.AmHost ||
+            IsInfected(target))
+        {
+            return false;
+        }
+
+        // MiraAPI synchronizes this modifier to every client.
+        // MiraAPI sincroniza este modificador con todos los clientes.
+        target!.RpcAddModifier<InfectedModifier>();
+
+        return true;
+    }
+
+    /// <summary>
+    /// Removes converted-player infection markers and clears temporary cooldown state.
+    /// Elimina los marcadores de jugadores convertidos y limpia el estado temporal de cooldowns.
+    /// </summary>
+    public static int Reset()
+    {
+        NextInfectAt.Clear();
+
+        if (AmongUsClient.Instance == null ||
+            !AmongUsClient.Instance.AmHost)
+        {
+            return 0;
+        }
+
+        var removed = 0;
+
+        foreach (var player in
+                 PlayerControl.AllPlayerControls.ToArray())
+        {
+            if (player == null)
+            {
+                continue;
+            }
+
+            var modifierComponent =
+                player.GetComponent<ModifierComponent>();
+
+            if (modifierComponent == null ||
+                !modifierComponent.HasModifier<InfectedModifier>())
+            {
+                continue;
+            }
+
+            player.RpcRemoveModifier<InfectedModifier>();
+            removed++;
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// Checks whether a player exists, is connected, has a role and is alive.
+    /// Comprueba que un jugador exista, esté conectado, tenga rol y siga vivo.
+    /// </summary>
+    private static bool IsValidLivingPlayer(
+        PlayerControl? player)
+    {
+        return IsValidConnectedPlayer(player) &&
+               !player!.Data.IsDead;
+    }
+
+    /// <summary>
+    /// Checks whether a player exists, has valid game data and is connected.
+    /// Comprueba que un jugador exista, tenga datos válidos y esté conectado.
+    /// </summary>
+    private static bool IsValidConnectedPlayer(
+        PlayerControl? player)
+    {
+        return player != null &&
+               player.Data != null &&
+               player.Data.Role != null &&
+               !player.Data.Disconnected;
+    }
 
     private static IEnumerable<PlayerControl> GetLivingPlayers()
     {
         return PlayerControl.AllPlayerControls
             .ToArray()
-            .Where(player =>
-                player != null &&
-                player.Data != null &&
-                player.Data.Role != null &&
-                !player.Data.Disconnected &&
-                !player.Data.IsDead);
+            .Where(IsValidLivingPlayer)
+            .Select(player => player!);
     }
 
     private static IEnumerable<PlayerControl> GetConnectedPlayers()
     {
         return PlayerControl.AllPlayerControls
             .ToArray()
-            .Where(player =>
-                player != null &&
-                player.Data != null &&
-                player.Data.Role != null &&
-                !player.Data.Disconnected);
+            .Where(IsValidConnectedPlayer)
+            .Select(player => player!);
     }
 }
