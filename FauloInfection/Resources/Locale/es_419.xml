@@ -2,4 +2,5 @@
 <resources>
     <string name="FauloInfection.GameMode.Infection.Name">Infección</string>
     <string name="FauloInfection.GameMode.Infection.Description">Infecta a todos los tripulantes antes de que se agote el tiempo.</string>
+    <string name="FauloInfection.Modifier.Infected.Name">Infectado</string>
 </resources>
