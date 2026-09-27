@@ -5,6 +5,7 @@ using HarmonyLib;
 using MiraAPI;
 using MiraAPI.PluginLoading;
 using Reactor;
+using FauloInfection.Patches;
 
 namespace FauloInfection;
 
@@ -21,6 +22,9 @@ public sealed class InfectionPlugin : BasePlugin, IMiraPlugin
     public Harmony Harmony { get; } = new(Id);
 
     public string OptionsTitleText => Name;
+    
+    public string GetAbbreviatedModName() =>
+        $"<b><color={InfectionCreditsColorPatch.CreditsColor}>FI</color></b>";
 
     public string CustomOptionMenuNameTwo => Name;
 
@@ -31,5 +35,10 @@ public sealed class InfectionPlugin : BasePlugin, IMiraPlugin
         Log.LogInfo($"{Name} v{Version} cargado.");
 
         Harmony.PatchAll();
+        
+        VersionDisplay.Register();
     }
+    
+    
+    
 }
