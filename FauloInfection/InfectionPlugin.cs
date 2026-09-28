@@ -6,6 +6,7 @@ using MiraAPI;
 using MiraAPI.Translation;
 using MiraAPI.PluginLoading;
 using Reactor;
+using FauloInfection.Compatibility;
 using FauloInfection.Patches;
 
 namespace FauloInfection;
@@ -14,6 +15,12 @@ namespace FauloInfection;
 [BepInProcess("Among Us.exe")]
 [BepInDependency(ReactorPlugin.Id)]
 [BepInDependency(MiraApiPlugin.Id)]
+// TOU:Mira sigue siendo completamente opcional.
+// Si está instalado, BepInEx carga FauloInfection después de TOU
+// para que podamos instalar la capa de compatibilidad de forma segura.
+[BepInDependency(
+    "auavengers.tou.mira",
+    BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class InfectionPlugin : BasePlugin, IMiraPlugin
 {
     public const string Id = "com.fault.fauloinfection";
@@ -42,9 +49,8 @@ public sealed class InfectionPlugin : BasePlugin, IMiraPlugin
 
         Harmony.PatchAll();
         
+        TownOfUsMiraCompatibility.Initialize(Harmony);
+        
         VersionDisplay.Register();
     }
-    
-    
-    
 }

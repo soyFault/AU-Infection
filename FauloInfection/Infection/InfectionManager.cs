@@ -1,9 +1,12 @@
 using FauloInfection.GameModes;
+using FauloInfection.Networking;
 using FauloInfection.Options;
 using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.Modifiers;
 using MiraAPI.Utilities;
+using Reactor.Networking.Rpc;
+
 using Reactor.Utilities;
 using UnityEngine;
 
@@ -253,6 +256,15 @@ public static class InfectionManager
             $"{source.PlayerId} -> {target.PlayerId}. " +
             $"{GetInfected().Count} infected, " +
             $"{RemainingSurvivors} survivors.");
+        
+// Una infección no cuenta como una muerte vanilla, así que Among Us
+// no necesariamente vuelve a comprobar las condiciones de fin.
+// El host fuerza esa comprobación después de cada conversión aceptada.
+        if (GameManager.Instance != null &&
+            GameManager.Instance.LogicFlow != null)
+        {
+            GameManager.Instance.LogicFlow.CheckEndCriteria();
+        }
 
         return true;
     }
@@ -276,10 +288,16 @@ public static class InfectionManager
         // MiraAPI sincroniza este modificador con todos los clientes.
         target!.RpcAddModifier<InfectedModifier>();
 
-        // EN: A newly infected player must wait before their first kill.
-        // ES: Un jugador recién infectado debe esperar antes de su primer asesinato.
+        // A newly infected player must wait before their first kill.
+        // Un jugador recién infectado debe esperar antes de su primer asesinato.
         NextKillAt[target!.PlayerId] =
             Time.time + InfectedKillCooldownSeconds;
+        
+        // El modifier sincroniza el estado real.
+        // Este RPC sincroniza únicamente la presentación visual.
+        Rpc<InfectionTransformRpc>.Instance.Send(
+            target,
+            target.PlayerId);
 
         return true;
     }
@@ -348,7 +366,7 @@ public static class InfectionManager
         }
 
         var distance =
-            source!.Data!.Role!.GetAbilityDistance();
+            source.Data!.Role!.GetAbilityDistance();
         
         // Recalculate the target on the host before accepting the kill.
         // Recalcula el objetivo en el host antes de aceptar el asesinato.

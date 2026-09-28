@@ -1,16 +1,16 @@
+using System.Collections.Generic;
+using AmongUs.Data;
 using FauloInfection.Infection;
 using FauloInfection.Options;
 using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
+using MiraAPI.HnsReimplemented;
 using UnityEngine;
 
 namespace FauloInfection.GameModes;
 
-// Hereda-Copia las propiedades de Escondidas // We inherit the HideAndSeekMode behaviors
 public sealed class InfectionMode : HideAndSeekMode
 {
-    // Este color es el que aparece en el selector de partida y el mismo que aparece en el Menu Principal .
-    // This color is the one in the game screen. Same as Main Menu
     public static Color InfectionColor { get; } =
         new Color32(69, 214, 107, 255);
 
@@ -25,6 +25,56 @@ public sealed class InfectionMode : HideAndSeekMode
         "FauloInfection.GameMode.Infection.Description";
 
     public override Color Color => InfectionColor;
+    
+    /// <summary>
+    /// Devuelve el tipo de cuerpo usado por cualquier miembro
+    /// del equipo infectado.
+    /// </summary>
+    public static PlayerBodyTypes GetInfectedBodyType()
+    {
+        if (AprilFoolsMode.ShouldHorseAround())
+        {
+            return PlayerBodyTypes.Normal;
+        }
+
+        if (AprilFoolsMode.ShouldLongAround())
+        {
+            return PlayerBodyTypes.LongSeeker;
+        }
+
+        return PlayerBodyTypes.Seeker;
+    }
+
+    /// <summary>
+    /// Devuelve el tipo de cuerpo normal de los supervivientes.
+    /// </summary>
+    public static PlayerBodyTypes GetSurvivorBodyType()
+    {
+        if (AprilFoolsMode.ShouldHorseAround())
+        {
+            return PlayerBodyTypes.Horse;
+        }
+
+        if (AprilFoolsMode.ShouldLongAround())
+        {
+            return PlayerBodyTypes.Long;
+        }
+
+        return PlayerBodyTypes.Normal;
+    }
+
+    /// <summary>
+    /// HideAndSeekMode solo reconoce como Seeker al Impostor base.
+    /// Infection también debe tratar como Seeker a los jugadores
+    /// convertidos mediante InfectedModifier.
+    /// </summary>
+    public override PlayerBodyTypes GetBodyType(
+        PlayerControl player)
+    {
+        return InfectionManager.IsInfected(player)
+            ? GetInfectedBodyType()
+            : GetSurvivorBodyType();
+    }
 
     // Inicializa el estado de Infection solo después de asignar todos los roles,
     // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
@@ -37,6 +87,103 @@ public sealed class InfectionMode : HideAndSeekMode
         base.PostAssignRoles(instance);
 
         InfectionManager.InitializeRound();
+    }
+    
+    /// <summary>
+    /// Reemplaza las condiciones de victoria de Hide and Seek
+    /// por condiciones basadas en el equipo real de Infection.
+    ///
+    /// Solo el host puede terminar la partida.
+    /// </summary>
+    public override void CheckGameEnd(
+        out bool runOriginal,
+        LogicGameFlowNormal instance)
+    {
+        // No queremos que HideAndSeekMode ejecute después
+        // sus condiciones basadas en Impostor/Crewmate.
+        runOriginal = false;
+
+        if (AmongUsClient.Instance == null ||
+            AmongUsClient.Instance.IsGameOver ||
+            !AmongUsClient.Instance.AmHost)
+        {
+            return;
+        }
+
+        var infectedCount =
+            InfectionManager.GetInfected().Count;
+
+        var survivorCount =
+            InfectionManager.RemainingSurvivors;
+
+        // Ya no queda ningún superviviente vivo.
+        // Los infectados ganan.
+        if (survivorCount == 0 &&
+            infectedCount > 0)
+        {
+            instance.Manager.RpcEndGame(
+                GameOverReason.HideAndSeek_ImpostorsByKills,
+                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+
+            return;
+        }
+
+        // Ya no queda ningún infectado vivo.
+        // Los supervivientes ganan.
+        if (infectedCount == 0 &&
+            survivorCount > 0)
+        {
+            instance.Manager.RpcEndGame(
+                GameOverReason.ImpostorDisconnect,
+                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+
+            return;
+        }
+
+        // Si termina el tiempo de Hide and Seek y todavía
+        // queda al menos un superviviente, sobreviven y ganan.
+        if (survivorCount > 0 &&
+            HideAndSeekHudHelper.Instance != null &&
+            HideAndSeekHudHelper.Instance.AllTimersExpired())
+        {
+            instance.Manager.RpcEndGame(
+                GameOverReason.HideAndSeek_CrewmatesByTimer,
+                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+        }
+    }
+
+    /// <summary>
+    /// Decide qué jugadores aparecen como ganadores.
+    ///
+    /// Aquí usamos el estado de Infection y no el rol base,
+    /// porque un infectado convertido puede seguir teniendo
+    /// Engineer o Crewmate como rol.
+    ///
+    /// Los muertos conectados siguen siendo parte de su equipo.
+    /// Los desconectados no aparecen como ganadores.
+    /// </summary>
+    public override List<NetworkedPlayerInfo>? CalculateWinners()
+    {
+        var infectedWon =
+            InfectionManager.RemainingSurvivors == 0;
+
+        var winningTeam =
+            infectedWon
+                ? InfectionManager.GetConnectedInfected()
+                : InfectionManager.GetConnectedSurvivors();
+
+        var winners =
+            new List<NetworkedPlayerInfo>();
+
+        foreach (var player in winningTeam)
+        {
+            if (player.Data != null)
+            {
+                winners.Add(player.Data);
+            }
+        }
+
+        return winners;
     }
 
     public override void HudUpdate(
