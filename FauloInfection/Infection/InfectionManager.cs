@@ -285,8 +285,8 @@ public static class InfectionManager
     }
 
     /// <summary>
-    /// EN: Determines whether an infected player is allowed to kill this target.
-    /// ES: Determina si un jugador infectado puede matar a este objetivo.
+    /// Determines whether an infected player is allowed to kill this target.
+    /// Determina si un jugador infectado puede matar a este objetivo.
     /// </summary>
     public static bool CanKillTarget(
         PlayerControl? source,
@@ -306,15 +306,15 @@ public static class InfectionManager
         var options =
             OptionGroupSingleton<InfectionOptions>.Instance;
 
-        // EN: Killing can be disabled completely for infected players.
-        // ES: Los asesinatos pueden desactivarse completamente para los infectados.
+        // Killing can be disabled completely for infected players.
+        // Los asesinatos pueden desactivarse completamente para los infectados.
         if (!options.AllowInfectedKills.Value)
         {
             return false;
         }
 
-        // EN: Without Friendly Fire, infected players cannot kill teammates.
-        // ES: Sin Fuego Amigo, los infectados no pueden matar a sus compañeros.
+        // Without Friendly Fire, infected players cannot kill teammates.
+        // Sin Fuego Amigo, los infectados no pueden matar a sus compañeros.
         if (!options.FriendlyFire.Value &&
             IsInfected(target))
         {
@@ -325,8 +325,8 @@ public static class InfectionManager
     }
 
     /// <summary>
-    /// EN: Host-authoritative kill attempt used by converted infected players.
-    /// ES: Intento de asesinato autoritativo del host usado por infectados convertidos.
+    /// Host-authoritative kill attempt used by converted infected players.
+    /// Intento de asesinato autoritativo del host usado por infectados convertidos.
     /// </summary>
     public static bool TryKill(
         PlayerControl? source,
@@ -371,9 +371,9 @@ public static class InfectionManager
         NextKillAt[source.PlayerId] =
             Time.time + InfectedKillCooldownSeconds;
 
-        // EN: Use the normal Among Us murder RPC so death animations,
+        // Use the normal Among Us murder RPC so death animations,
         // bodies and the Hide & Seek death notification remain intact.
-        // ES: Usa el RPC normal de asesinato de Among Us para conservar
+        // Usa el RPC normal de asesinato de Among Us para conservar
         // animaciones, cadáveres y la notificación de muerte de Hide & Seek.
         source.RpcMurderPlayer(target, true);
 

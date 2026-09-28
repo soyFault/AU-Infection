@@ -38,12 +38,14 @@ public sealed class InfectionMode : HideAndSeekMode
 
         InfectionManager.InitializeRound();
     }
-    
-    public override void HudUpdate(HudManager instance)
+
+    public override void HudUpdate(
+        HudManager instance)
     {
         base.HudUpdate(instance);
 
-        var localPlayer = PlayerControl.LocalPlayer;
+        var localPlayer =
+            PlayerControl.LocalPlayer;
 
         if (localPlayer == null ||
             localPlayer.Data?.Role == null ||

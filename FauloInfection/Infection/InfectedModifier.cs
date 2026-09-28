@@ -8,9 +8,7 @@ namespace FauloInfection.Infection;
 
 public sealed class InfectedModifier : BaseModifier
 {
-    // cambio
     private bool refreshHudNextFixedUpdate;
-    // fin del cambio
 
     public override string ModifierName =>
         MiraLocaleManager.Get(
@@ -42,15 +40,13 @@ public sealed class InfectedModifier : BaseModifier
             return;
         }
 
-        // cambio
+
         // MiraAPI llama OnActivate antes de actualizar ActiveModifiers.
         // Esperamos al FixedUpdate del modifier, cuando el estado de infección
         // ya puede ser consultado correctamente por los botones.
         refreshHudNextFixedUpdate = true;
-        // fin del cambio
     }
-
-    // cambio
+    
     public override void FixedUpdate()
     {
         base.FixedUpdate();
@@ -88,15 +84,12 @@ public sealed class InfectedModifier : BaseModifier
             true,
             Player.Data.Role);
     }
-    // fin del cambio
 
     public override void OnDeactivate()
     {
         base.OnDeactivate();
-
-        // cambio
+        
         refreshHudNextFixedUpdate = false;
-        // fin del cambio
 
         if (!Player.AmOwner ||
             Player.Data?.Role == null ||

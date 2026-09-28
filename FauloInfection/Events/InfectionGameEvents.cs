@@ -6,6 +6,7 @@ namespace FauloInfection.Events;
 
 public static class InfectionGameEvents
 {
+
     [RegisterEvent(-10000)]
     public static void BeforeMurderEventHandler(
         BeforeMurderEvent @event)

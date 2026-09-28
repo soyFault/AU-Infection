@@ -12,8 +12,8 @@ using UnityEngine;
 namespace FauloInfection.Buttons;
 
 /// <summary>
-/// EN: Kill button used by infected players that kept a non-Impostor base role.
-/// ES: Botón de matar usado por infectados que conservaron un rol base no-Impostor.
+/// Kill button used by infected players that kept a non-Impostor base role.
+/// Botón de matar usado por infectados que conservaron un rol base no-Impostor.
 /// </summary>
 public sealed class InfectedKillButton :
     CustomActionButton<PlayerControl>
@@ -82,8 +82,8 @@ public sealed class InfectedKillButton :
             return false;
         }
 
-        // EN: The initial Seeker already has the vanilla Kill button.
-        // ES: El Seeker inicial ya posee el botón Kill vanilla.
+        // The initial Seeker already has the vanilla Kill button.
+        // El Seeker inicial ya posee el botón Kill vanilla.
         return InfectionManager.IsActive &&
                InfectionManager.IsInfected(localPlayer) &&
                !localPlayer.Data.Role.IsImpostor &&
