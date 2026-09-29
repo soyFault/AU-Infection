@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using AmongUs.Data;
+using FauloInfection.Buttons;
 using FauloInfection.Infection;
 using FauloInfection.Options;
 using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.HnsReimplemented;
+using MiraAPI.Hud;
 using UnityEngine;
 
 namespace FauloInfection.GameModes;
@@ -25,7 +27,7 @@ public sealed class InfectionMode : HideAndSeekMode
         "FauloInfection.GameMode.Infection.Description";
 
     public override Color Color => InfectionColor;
-    
+
     /// <summary>
     /// Devuelve el tipo de cuerpo usado por cualquier miembro
     /// del equipo infectado.
@@ -76,6 +78,42 @@ public sealed class InfectionMode : HideAndSeekMode
             : GetSurvivorBodyType();
     }
 
+    /// <summary>
+    /// Refresca el HUD local cuando Infection termina de inicializarse.
+    /// El Seeker inicial no recibe InfectedModifier, así que necesita
+    /// esta ruta para mostrar Infectar sin abrir y cerrar el mapa.
+    /// </summary>
+    public override void Initialize()
+    {
+        base.Initialize();
+
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (!HudManager.InstanceExists ||
+            localPlayer == null ||
+            localPlayer.Data?.Role == null)
+        {
+            return;
+        }
+
+        // Equivale al refresh que Among Us hace al cerrar
+        // el mapa y permite que MiraAPI reevalúe los botones.
+        HudManager.Instance.SetHudActive(
+            localPlayer,
+            localPlayer.Data.Role,
+            true);
+
+        var infectButton =
+            CustomButtonSingleton<InfectButton>.Instance;
+
+        infectButton.ResetCooldownAndOrEffect();
+
+        infectButton.SetActive(
+            true,
+            localPlayer.Data.Role);
+    }
+
     // Inicializa el estado de Infection solo después de asignar todos los roles,
     // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
     //
@@ -88,7 +126,7 @@ public sealed class InfectionMode : HideAndSeekMode
 
         InfectionManager.InitializeRound();
     }
-    
+
     /// <summary>
     /// Reemplaza las condiciones de victoria de Hide and Seek
     /// por condiciones basadas en el equipo real de Infection.
@@ -190,6 +228,17 @@ public sealed class InfectionMode : HideAndSeekMode
         HudManager instance)
     {
         base.HudUpdate(instance);
+
+        InfectionHudController.Update(instance);
+        
+        // Infection no permite reportar cuerpos.
+        // Mantenemos el botón oculto para que ningún refresh del HUD
+        // vuelva a mostrar una acción que no puede utilizarse.
+        if (instance.ReportButton)
+        {
+            instance.ReportButton.SetDisabled();
+            instance.ReportButton.ToggleVisible(false);
+        }
 
         var localPlayer =
             PlayerControl.LocalPlayer;

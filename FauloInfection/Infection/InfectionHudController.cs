@@ -1,0 +1,274 @@
+using System;
+using MiraAPI.GameOptions;
+using MiraAPI.HnsReimplemented.Options;
+using UnityEngine;
+
+namespace FauloInfection.Infection;
+
+/// <summary>
+/// Mantiene los elementos visuales de Hide and Seek
+/// sincronizados con el estado real de Infection.
+/// </summary>
+public static class InfectionHudController
+{
+
+    // El tracker representa estados discretos que cambian muy poco,
+    // así que no necesita recalcularse cada frame.
+    private const float TrackerUpdateInterval = 0.25f;
+
+    // El medidor sí depende del movimiento, pero 10 Hz es suficiente
+    // para que visualmente responda de forma continua.
+    private const float DangerUpdateInterval = 0.10f;
+
+    private static float _nextTrackerUpdateAt;
+    private static float _nextDangerUpdateAt;
+
+
+    public static void Update(
+        HudManager hud)
+    {
+        var now = Time.time;
+
+        if (now >= _nextTrackerUpdateAt)
+        {
+            _nextTrackerUpdateAt =
+                now + TrackerUpdateInterval;
+
+            UpdateSurvivorTracker(hud);
+        }
+
+        if (now >= _nextDangerUpdateAt)
+        {
+            _nextDangerUpdateAt =
+                now + DangerUpdateInterval;
+
+            UpdateDangerMeter(hud);
+        }
+    }
+
+    /// <summary>
+    /// Usa el contador visual de HnS para representar
+    /// supervivientes que ya fueron convertidos o murieron.
+    /// </summary>
+    private static void UpdateSurvivorTracker(
+        HudManager hud)
+    {
+        var tracker =
+            hud.CrewmatesKilled;
+
+        if (!tracker)
+        {
+            return;
+        }
+
+        tracker.gameObject.SetActive(true);
+        
+        // Recorremos directamente la colección de jugadores.
+        var removedSurvivorCount = 0;
+
+        var players =
+            PlayerControl.AllPlayerControls;
+
+        for (var i = 0;
+             i < players.Count;
+             i++)
+        {
+            var player =
+                players[i];
+
+            if (player == null ||
+                player.Data == null ||
+                player.Data.Role == null)
+            {
+                continue;
+            }
+
+            // El Seeker inicial nunca ocupa uno de los
+            // iconos de Crewmate del tracker.
+            if (player.Data.Role.IsImpostor)
+            {
+                continue;
+            }
+
+            // Un jugador debe consumir como máximo un icono.
+            // Si fue convertido y después murió, sigue contando una vez.
+            if (player.Data.IsDead ||
+                InfectionManager.IsInfected(player))
+            {
+                removedSurvivorCount++;
+            }
+        }
+
+        if (removedSurvivorCount <= 0)
+        {
+            return;
+        }
+
+        var spriteCount =
+            tracker.crewmateSprites.Count;
+
+        var animationCount =
+            tracker.slashAnimations.Count;
+
+        if (spriteCount == 0 ||
+            animationCount == 0)
+        {
+            return;
+        }
+
+        var amountToMark =
+            Math.Min(
+                removedSurvivorCount,
+                spriteCount);
+
+        for (var i = 0;
+             i < amountToMark;
+             i++)
+        {
+            var sprite =
+                tracker.crewmateSprites[i];
+
+            if (!sprite ||
+                sprite.IsKilled)
+            {
+                continue;
+            }
+
+            sprite.SetKilled(
+                tracker.slashAnimations[
+                    i % animationCount]);
+        }
+    }
+
+    /// <summary>
+    /// Calcula el peligro usando cualquier infectado vivo,
+    /// incluido el Seeker inicial y los infectados convertidos.
+    /// </summary>
+    private static void UpdateDangerMeter(
+        HudManager hud)
+    {
+        var meter =
+            hud.DangerMeter;
+
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (!meter ||
+            localPlayer == null ||
+            localPlayer.Data == null)
+        {
+            return;
+        }
+
+        // Un infectado no necesita saber qué tan cerca
+        // está otro miembro de su propio equipo.
+        if (localPlayer.Data.Disconnected ||
+            localPlayer.Data.IsDead ||
+            InfectionManager.IsInfected(localPlayer))
+        {
+            meter.SetDangerValue(
+                0f,
+                0f);
+
+            meter.gameObject.SetActive(false);
+
+            return;
+        }
+
+        meter.gameObject.SetActive(true);
+
+        var baseSpeed =
+            OptionGroupSingleton<HnsCrewmateOptions>
+                .Instance
+                .PlayerSpeed
+                .Value;
+
+        var scaryDistance =
+            55f * baseSpeed;
+
+        var veryScaryDistance =
+            15f * baseSpeed;
+
+        if (scaryDistance <
+            veryScaryDistance)
+        {
+            (
+                scaryDistance,
+                veryScaryDistance
+            ) =
+            (
+                veryScaryDistance,
+                scaryDistance
+            );
+        }
+        
+        // Buscamos directamente al infectado vivo más cercano.
+        var closestDistanceSquared =
+            float.MaxValue;
+
+        var foundInfected = false;
+
+        var players =
+            PlayerControl.AllPlayerControls;
+
+        for (var i = 0;
+             i < players.Count;
+             i++)
+        {
+            var player =
+                players[i];
+
+            if (player == null ||
+                player == localPlayer ||
+                player.Data == null ||
+                player.Data.Disconnected ||
+                player.Data.IsDead ||
+                !InfectionManager.IsInfected(player))
+            {
+                continue;
+            }
+
+            foundInfected = true;
+
+            var distanceSquared =
+                (player.transform.position -
+                 localPlayer.transform.position)
+                .sqrMagnitude;
+
+            if (distanceSquared <
+                closestDistanceSquared)
+            {
+                closestDistanceSquared =
+                    distanceSquared;
+            }
+        }
+
+        if (!foundInfected)
+        {
+            meter.SetDangerValue(
+                0f,
+                0f);
+
+            return;
+        }
+
+        // Conservamos aquí la misma escala usada por
+        // la implementación HnS de MiraAPI.
+        var dangerLevel1 =
+            Mathf.Clamp01(
+                (scaryDistance -
+                 closestDistanceSquared) /
+                (scaryDistance -
+                 veryScaryDistance));
+
+        var dangerLevel2 =
+            Mathf.Clamp01(
+                (veryScaryDistance -
+                 closestDistanceSquared) /
+                veryScaryDistance);
+
+        meter.SetDangerValue(
+            dangerLevel1,
+            dangerLevel2);
+    }
+}
