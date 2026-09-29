@@ -130,6 +130,10 @@ public sealed class InfectionMode : HideAndSeekMode
         // que pudieran quedar de la ronda anterior.
         InfectionHudController.ResetRound();
         
+        // La nueva ronda crea una nueva fuente de iluminación,
+        // así que debe volver a aplicarse la configuración de Infection.
+        InfectionVisionController.ResetRound();
+        
         // Cada ronda puede reutilizar los mismos IDs de tareas,
         // así que eliminamos el historial de la ronda anterior.
         InfectionTaskEvents.ResetRound();
@@ -348,5 +352,9 @@ public sealed class InfectionMode : HideAndSeekMode
         // Mantiene sincronizados los elementos de Hide and Seek adaptados
         // a Infection: peligro, contador de conversiones y demás HUD propio.
         InfectionHudController.Update(instance);
+        
+        // La linterna es presentación local y debe adaptarse si
+        // el jugador cambia de superviviente a infectado.
+        InfectionVisionController.UpdateLocalLighting();
     }
 }
