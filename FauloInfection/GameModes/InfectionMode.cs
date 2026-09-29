@@ -1,12 +1,13 @@
 using System.Collections.Generic;
+using System.Linq;
 using AmongUs.Data;
-using FauloInfection.Buttons;
+using FauloInfection.GameOver;
 using FauloInfection.Infection;
 using FauloInfection.Options;
+using MiraAPI.GameEnd;
 using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.HnsReimplemented;
-using MiraAPI.Hud;
 using UnityEngine;
 
 namespace FauloInfection.GameModes;
@@ -27,7 +28,7 @@ public sealed class InfectionMode : HideAndSeekMode
         "FauloInfection.GameMode.Infection.Description";
 
     public override Color Color => InfectionColor;
-
+    
     /// <summary>
     /// Devuelve el tipo de cuerpo usado por cualquier miembro
     /// del equipo infectado.
@@ -78,42 +79,6 @@ public sealed class InfectionMode : HideAndSeekMode
             : GetSurvivorBodyType();
     }
 
-    /// <summary>
-    /// Refresca el HUD local cuando Infection termina de inicializarse.
-    /// El Seeker inicial no recibe InfectedModifier, así que necesita
-    /// esta ruta para mostrar Infectar sin abrir y cerrar el mapa.
-    /// </summary>
-    public override void Initialize()
-    {
-        base.Initialize();
-
-        var localPlayer =
-            PlayerControl.LocalPlayer;
-
-        if (!HudManager.InstanceExists ||
-            localPlayer == null ||
-            localPlayer.Data?.Role == null)
-        {
-            return;
-        }
-
-        // Equivale al refresh que Among Us hace al cerrar
-        // el mapa y permite que MiraAPI reevalúe los botones.
-        HudManager.Instance.SetHudActive(
-            localPlayer,
-            localPlayer.Data.Role,
-            true);
-
-        var infectButton =
-            CustomButtonSingleton<InfectButton>.Instance;
-
-        infectButton.ResetCooldownAndOrEffect();
-
-        infectButton.SetActive(
-            true,
-            localPlayer.Data.Role);
-    }
-
     // Inicializa el estado de Infection solo después de asignar todos los roles,
     // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
     //
@@ -126,7 +91,7 @@ public sealed class InfectionMode : HideAndSeekMode
 
         InfectionManager.InitializeRound();
     }
-
+    
     /// <summary>
     /// Reemplaza las condiciones de victoria de Hide and Seek
     /// por condiciones basadas en el equipo real de Infection.
@@ -159,9 +124,11 @@ public sealed class InfectionMode : HideAndSeekMode
         if (survivorCount == 0 &&
             infectedCount > 0)
         {
-            instance.Manager.RpcEndGame(
-                GameOverReason.HideAndSeek_ImpostorsByKills,
-                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+            CustomGameOver.Trigger<InfectedVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedInfected()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
 
             return;
         }
@@ -171,9 +138,11 @@ public sealed class InfectionMode : HideAndSeekMode
         if (infectedCount == 0 &&
             survivorCount > 0)
         {
-            instance.Manager.RpcEndGame(
-                GameOverReason.ImpostorDisconnect,
-                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+            CustomGameOver.Trigger<SurvivorVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedSurvivors()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
 
             return;
         }
@@ -184,9 +153,11 @@ public sealed class InfectionMode : HideAndSeekMode
             HideAndSeekHudHelper.Instance != null &&
             HideAndSeekHudHelper.Instance.AllTimersExpired())
         {
-            instance.Manager.RpcEndGame(
-                GameOverReason.HideAndSeek_CrewmatesByTimer,
-                !DataManager.Player.Ads.HasPurchasedAdRemoval);
+            CustomGameOver.Trigger<SurvivorVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedSurvivors()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
         }
     }
 
@@ -229,36 +200,27 @@ public sealed class InfectionMode : HideAndSeekMode
     {
         base.HudUpdate(instance);
 
-        InfectionHudController.Update(instance);
-        
-        // Infection no permite reportar cuerpos.
-        // Mantenemos el botón oculto para que ningún refresh del HUD
-        // vuelva a mostrar una acción que no puede utilizarse.
-        if (instance.ReportButton)
-        {
-            instance.ReportButton.SetDisabled();
-            instance.ReportButton.ToggleVisible(false);
-        }
-
         var localPlayer =
             PlayerControl.LocalPlayer;
 
-        if (localPlayer == null ||
-            localPlayer.Data?.Role == null ||
-            !localPlayer.Data.Role.IsImpostor)
+        if (localPlayer != null &&
+            localPlayer.Data?.Role != null &&
+            localPlayer.Data.Role.IsImpostor)
         {
-            return;
+            // El Seeker inicial usa el botón Kill vanilla.
+            // Si los asesinatos están desactivados, mantenemos ese botón oculto
+            // incluso si Among Us refresca el HUD e intenta mostrarlo otra vez.
+            if (!OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .AllowInfectedKills
+                    .Value)
+            {
+                instance.KillButton.ToggleVisible(false);
+            }
         }
-
-        // El Seeker inicial usa el botón Kill vanilla.
-        // Si los asesinatos están desactivados, mantenemos ese botón oculto
-        // incluso si Among Us refresca el HUD e intenta mostrarlo otra vez.
-        if (!OptionGroupSingleton<InfectionOptions>
-                .Instance
-                .AllowInfectedKills
-                .Value)
-        {
-            instance.KillButton.ToggleVisible(false);
-        }
+        
+        // Mantiene sincronizados los elementos de Hide and Seek adaptados
+        // a Infection: peligro, contador de conversiones y demás HUD propio.
+        InfectionHudController.Update(instance);
     }
 }

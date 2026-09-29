@@ -10,4 +10,6 @@ se agote el tiempo.</string>
     <string name="FauloInfection.Options.AllowInfectedKills">Infectados pueden Matar</string>
     <string name="FauloInfection.Options.FriendlyFire">Fuego amigo</string>
     <string name="FauloInfection.Button.Kill">Matar</string>
+    <string name="FauloInfection.GameOver.Infected.Win">¡Los infectados ganan!</string>
+    <string name="FauloInfection.GameOver.Survivors.Win">¡Los supervivientes ganan!</string>
 </resources>
