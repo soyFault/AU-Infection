@@ -42,4 +42,190 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                     .AllowInfectedKills
                     .Value,
         };
+    
+    public ModdedNumberOption InfectionChance { get; set; } =
+        new(
+            "FauloInfection.Options.InfectionChance",
+            100f,
+            0f,
+            100f,
+            5f,
+            MiraNumberSuffixes.Percent);
+
+    public ModdedToggleOption UseHnsVision { get; set; } =
+        new(
+            "FauloInfection.Options.UseHnsVision",
+            true);
+
+    public ModdedToggleOption NotifyInfections { get; set; } =
+        new(
+            "FauloInfection.Options.NotifyInfections",
+            true);
+
+    public ModdedNumberOption CrewmateVision { get; set; } =
+        new(
+            "FauloInfection.Options.CrewmateVision",
+            0.6f,
+            0.25f,
+            5f,
+            0.05f,
+            MiraNumberSuffixes.Multiplier,
+            "0.00");
+
+    public ModdedNumberOption InfectedVision { get; set; } =
+        new(
+            "FauloInfection.Options.InfectedVision",
+            0.6f,
+            0.25f,
+            5f,
+            0.05f,
+            MiraNumberSuffixes.Multiplier,
+            "0.00");
+
+    public ModdedNumberOption InitialInfectedVision { get; set; } =
+        new(
+            "FauloInfection.Options.InitialInfectedVision",
+            0.6f,
+            0.25f,
+            5f,
+            0.05f,
+            MiraNumberSuffixes.Multiplier,
+            "0.00");
+
+    public ModdedToggleOption UseHorseModel { get; set; } =
+        new(
+            "FauloInfection.Options.UseHorseModel",
+            false);
+
+    public ModdedToggleOption CrewmatesCanVent { get; set; } =
+        new(
+            "FauloInfection.Options.CrewmatesCanVent",
+            true);
+
+    public ModdedNumberOption VentUses { get; set; } =
+        new(
+            "FauloInfection.Options.VentUses",
+            1f,
+            0f,
+            15f,
+            1f,
+            MiraNumberSuffixes.None,
+            "0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .CrewmatesCanVent
+                    .Value,
+        };
+
+    public ModdedNumberOption VentDuration { get; set; } =
+        new(
+            "FauloInfection.Options.VentDuration",
+            3f,
+            1f,
+            30f,
+            1f,
+            MiraNumberSuffixes.Seconds,
+            "0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .CrewmatesCanVent
+                    .Value,
+        };
+
+    public ModdedNumberOption VentCooldown { get; set; } =
+        new(
+            "FauloInfection.Options.VentCooldown",
+            10f,
+            0f,
+            60f,
+            2.5f,
+            MiraNumberSuffixes.Seconds,
+            "0.0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .CrewmatesCanVent
+                    .Value,
+        };
+
+    public ModdedNumberOption AdrenalineActivationTime { get; set; } =
+        new(
+            "FauloInfection.Options.AdrenalineActivationTime",
+            60f,
+            0f,
+            180f,
+            5f,
+            MiraNumberSuffixes.Seconds,
+            "0");
+
+    public ModdedToggleOption EnableTasks { get; set; } =
+        new(
+            "FauloInfection.Options.EnableTasks",
+            true);
+
+    public ModdedNumberOption CommonTasks { get; set; } =
+        new(
+            "FauloInfection.Options.CommonTasks",
+            1f,
+            0f,
+            4f,
+            1f,
+            MiraNumberSuffixes.None,
+            "0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .EnableTasks
+                    .Value,
+        };
+
+    public ModdedNumberOption ShortTasks { get; set; } =
+        new(
+            "FauloInfection.Options.ShortTasks",
+            2f,
+            0f,
+            8f,
+            1f,
+            MiraNumberSuffixes.None,
+            "0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .EnableTasks
+                    .Value,
+        };
+
+    public ModdedNumberOption LongTasks { get; set; } =
+        new(
+            "FauloInfection.Options.LongTasks",
+            1f,
+            0f,
+            4f,
+            1f,
+            MiraNumberSuffixes.None,
+            "0")
+        {
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .EnableTasks
+                    .Value,
+        };
+
+    public ModdedToggleOption DisableProximityIndicators { get; set; } =
+        new(
+            "FauloInfection.Options.DisableProximityIndicators",
+            false);
+
+    public ModdedToggleOption InfectedCanSabotageDoors { get; set; } =
+        new(
+            "FauloInfection.Options.InfectedCanSabotageDoors",
+            false);
 }

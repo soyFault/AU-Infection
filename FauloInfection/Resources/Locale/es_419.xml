@@ -1,14 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="FauloInfection.GameMode.Infection.Name">Infección</string>
-    <string name="FauloInfection.GameMode.Infection.Description">Infecta a todos los tripulantes antes de que 
-se agote el tiempo.</string>
+    <string name="FauloInfection.GameMode.Infection.Description">Infecta a todos los tripulantes antes de que se agote el tiempo.</string>
     <string name="FauloInfection.Modifier.Infected.Name">Infectado</string>
     <string name="FauloInfection.Button.Infect">Infectar</string>
     <string name="FauloInfection.Hud.PlayerInfected">Fue infectado</string>
+
     <string name="FauloInfection.Options.Group">Infección</string>
-    <string name="FauloInfection.Options.AllowInfectedKills">Infectados pueden Matar</string>
+    <string name="FauloInfection.Options.AllowInfectedKills">Permitir asesinatos de infectados</string>
     <string name="FauloInfection.Options.FriendlyFire">Fuego amigo</string>
+    <string name="FauloInfection.Options.InfectionChance">Probabilidad de infección</string>
+    <string name="FauloInfection.Options.UseHnsVision">Usar visión de HnS</string>
+    <string name="FauloInfection.Options.NotifyInfections">Notificar infecciones</string>
+    <string name="FauloInfection.Options.CrewmateVision">Visión de supervivientes</string>
+    <string name="FauloInfection.Options.InfectedVision">Visión de infectados</string>
+    <string name="FauloInfection.Options.InitialInfectedVision">Visión del infectado inicial</string>
+    <string name="FauloInfection.Options.UseHorseModel">Usar modelo de caballo</string>
+    <string name="FauloInfection.Options.CrewmatesCanVent">Los supervivientes pueden usar ductos</string>
+    <string name="FauloInfection.Options.VentUses">Usos de ductos</string>
+    <string name="FauloInfection.Options.VentDuration">Duración en ductos</string>
+    <string name="FauloInfection.Options.VentCooldown">Recarga de ductos</string>
+    <string name="FauloInfection.Options.AdrenalineActivationTime">Tiempo hasta Adrenalina</string>
+    <string name="FauloInfection.Options.EnableTasks">Activar tareas</string>
+    <string name="FauloInfection.Options.CommonTasks">Tareas comunes</string>
+    <string name="FauloInfection.Options.ShortTasks">Tareas cortas</string>
+    <string name="FauloInfection.Options.LongTasks">Tareas largas</string>
+    <string name="FauloInfection.Options.DisableProximityIndicators">Desactivar indicadores de proximidad</string>
+    <string name="FauloInfection.Options.InfectedCanSabotageDoors">Los infectados pueden sabotear puertas</string>
+
     <string name="FauloInfection.Button.Kill">Matar</string>
     <string name="FauloInfection.GameOver.Infected.Win">¡Los infectados ganan!</string>
     <string name="FauloInfection.GameOver.Survivors.Win">¡Los supervivientes ganan!</string>

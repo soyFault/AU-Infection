@@ -5,9 +5,29 @@
     <string name="FauloInfection.Modifier.Infected.Name">Infected</string>
     <string name="FauloInfection.Button.Infect">Infect</string>
     <string name="FauloInfection.Hud.PlayerInfected">Was infected</string>
+
     <string name="FauloInfection.Options.Group">Infection</string>
     <string name="FauloInfection.Options.AllowInfectedKills">Allow Infected Kills</string>
     <string name="FauloInfection.Options.FriendlyFire">Friendly Fire</string>
+    <string name="FauloInfection.Options.InfectionChance">Infection Chance</string>
+    <string name="FauloInfection.Options.UseHnsVision">Use HnS Flashlight Vision</string>
+    <string name="FauloInfection.Options.NotifyInfections">Notify Infections</string>
+    <string name="FauloInfection.Options.CrewmateVision">Crewmate Vision</string>
+    <string name="FauloInfection.Options.InfectedVision">Infected Vision</string>
+    <string name="FauloInfection.Options.InitialInfectedVision">Initial Infected Vision</string>
+    <string name="FauloInfection.Options.UseHorseModel">Use Horse Model</string>
+    <string name="FauloInfection.Options.CrewmatesCanVent">Crewmates Can Vent</string>
+    <string name="FauloInfection.Options.VentUses">Vent Uses</string>
+    <string name="FauloInfection.Options.VentDuration">Vent Duration</string>
+    <string name="FauloInfection.Options.VentCooldown">Vent Cooldown</string>
+    <string name="FauloInfection.Options.AdrenalineActivationTime">Time Until Adrenaline</string>
+    <string name="FauloInfection.Options.EnableTasks">Enable Tasks</string>
+    <string name="FauloInfection.Options.CommonTasks">Common Tasks</string>
+    <string name="FauloInfection.Options.ShortTasks">Short Tasks</string>
+    <string name="FauloInfection.Options.LongTasks">Long Tasks</string>
+    <string name="FauloInfection.Options.DisableProximityIndicators">Disable Proximity Indicators</string>
+    <string name="FauloInfection.Options.InfectedCanSabotageDoors">Infected Can Sabotage Doors</string>
+
     <string name="FauloInfection.Button.Kill">Kill</string>
     <string name="FauloInfection.GameOver.Infected.Win">Infected win!</string>
     <string name="FauloInfection.GameOver.Survivors.Win">Survivors win!</string>
