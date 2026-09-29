@@ -107,6 +107,10 @@ public sealed class InfectionMode : HideAndSeekMode
     public override void Initialize()
     {
         base.Initialize();
+        
+        // Cada ronda puede reutilizar los mismos IDs de tareas,
+        // así que eliminamos el historial de la ronda anterior.
+        InfectionTaskEvents.ResetRound();
 
         var localPlayer =
             PlayerControl.LocalPlayer;
