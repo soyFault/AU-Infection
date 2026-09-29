@@ -1,8 +1,10 @@
 using System;
 using FauloInfection.Options;
 using MiraAPI.GameOptions;
+using MiraAPI.HnsReimplemented;
 using MiraAPI.HnsReimplemented.Options;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace FauloInfection.Infection;
 
@@ -16,13 +18,14 @@ public static class InfectionHudController
     // El tracker representa estados discretos que cambian muy poco,
     // así que no necesita recalcularse cada frame.
     private const float TrackerUpdateInterval = 0.25f;
-
     // El medidor sí depende del movimiento, pero 10 Hz es suficiente
     // para que visualmente responda de forma continua.
     private const float DangerUpdateInterval = 0.10f;
-
     private static float _nextTrackerUpdateAt;
     private static float _nextDangerUpdateAt;
+    private static ObjectPoolBehavior? _pingPool;
+    private static float _nextPingAt;
+    private static float _hidePingsAt;
 
 
     public static void Update(
@@ -47,6 +50,8 @@ public static class InfectionHudController
 
             UpdateDangerMeter(hud);
         }
+        
+        UpdateAdrenalinePings();
     }
     
     /// <summary>
@@ -330,5 +335,124 @@ public static class InfectionHudController
         meter.SetDangerValue(
             dangerLevel1,
             dangerLevel2);
+    }
+    
+    /// <summary>
+    /// Durante Adrenalina, muestra periódicamente a los infectados
+    /// la dirección de cada superviviente vivo.
+    /// </summary>
+    private static void UpdateAdrenalinePings()
+    {
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        var helper =
+            HideAndSeekHudHelper.Instance;
+
+        if (localPlayer == null ||
+            localPlayer.Data == null ||
+            helper == null ||
+            !helper.IsFinalCountdown ||
+            !InfectionManager.IsInfected(localPlayer))
+        {
+            HideActivePings();
+            return;
+        }
+
+        if (_pingPool == null)
+        {
+            _pingPool =
+                Object.Instantiate(
+                    GameManagerCreator
+                        .Instance
+                        .HideAndSeekManagerPrefab
+                        .PingPool,
+                    localPlayer.transform);
+        }
+
+        if (_hidePingsAt > 0f &&
+            Time.time >= _hidePingsAt)
+        {
+            HideActivePings();
+            _hidePingsAt = 0f;
+        }
+
+        if (Time.time < _nextPingAt)
+        {
+            return;
+        }
+
+        HideActivePings();
+
+        var survivors =
+            InfectionManager.GetSurvivors();
+
+        for (var i = 0;
+             i < survivors.Count;
+             i++)
+        {
+            var survivor =
+                survivors[i];
+
+            if (survivor == null ||
+                survivor.Data == null ||
+                survivor.Data.IsDead ||
+                survivor.Data.Disconnected)
+            {
+                continue;
+            }
+
+            var ping =
+                _pingPool.Get<PingBehaviour>();
+
+            ping.target =
+                survivor.GetTruePosition();
+
+            ping.AmSeeker = true;
+            ping.UpdatePosition();
+            ping.gameObject.SetActive(true);
+            ping.SetImageEnabled(true);
+        }
+
+        // Los pings permanecen visibles solo unos segundos,
+        // igual que en Hide and Seek.
+        _hidePingsAt =
+            Time.time + 2f;
+
+        _nextPingAt =
+            Time.time +
+            OptionGroupSingleton<HnsFinalHideOptions>
+                .Instance
+                .PingInterval
+                .Value;
+    }
+
+    /// <summary>
+    /// Oculta todos los pings activos creados durante Adrenalina.
+    /// </summary>
+    private static void HideActivePings()
+    {
+        if (_pingPool == null)
+        {
+            return;
+        }
+
+        foreach (var pooled in
+                 _pingPool.activeChildren)
+        {
+            var ping =
+                pooled.TryCast<PingBehaviour>();
+
+            if (ping == null)
+            {
+                continue;
+            }
+
+            ping.target =
+                Vector3.zero;
+
+            ping.SetImageEnabled(false);
+            ping.gameObject.SetActive(false);
+        }
     }
 }

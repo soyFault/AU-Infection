@@ -8,6 +8,7 @@ using MiraAPI.GameEnd;
 using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.HnsReimplemented;
+using MiraAPI.HnsReimplemented.Options;
 using UnityEngine;
 
 namespace FauloInfection.GameModes;
@@ -106,8 +107,25 @@ public sealed class InfectionMode : HideAndSeekMode
     /// </summary>
     public override void Initialize()
     {
+        var options =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        // Infection usa su propia opción de Adrenalina como duración
+        // de la fase final de Hide and Seek.
+        //
+        // Debe configurarse antes de base.Initialize(), porque la
+        // infraestructura de HnS prepara sus temporizadores durante
+        // esa inicialización.
+        OptionGroupSingleton<HnsFinalHideOptions>
+            .Instance
+            .FinalHideTime
+            .SetValue(
+                options.AdrenalineActivationTime.Value,
+                false);
+
         base.Initialize();
-        
+    
         // Cada ronda puede reutilizar los mismos IDs de tareas,
         // así que eliminamos el historial de la ronda anterior.
         InfectionTaskEvents.ResetRound();
@@ -120,10 +138,8 @@ public sealed class InfectionMode : HideAndSeekMode
         {
             return;
         }
-
-        var options =
-            OptionGroupSingleton<InfectionOptions>
-                .Instance;
+        
+        // Options ya fue obtenido antes de inicializar HnS.
 
         if (InfectionManager.IsInfected(localPlayer) ||
             !options.EnableTasks.Value)
@@ -131,7 +147,6 @@ public sealed class InfectionMode : HideAndSeekMode
             localPlayer.ClearTasks();
         }
     }
-    
     
     /// <summary>
     /// Copia las cantidades de tareas configuradas en Infection

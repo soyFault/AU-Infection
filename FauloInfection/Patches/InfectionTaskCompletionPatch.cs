@@ -68,19 +68,22 @@ internal static class InfectionTaskCompletionPatch
 
             return;
         }
-
-        // Data.Tasks guarda el TypeId sincronizado.
-        // Con él recuperamos la plantilla real del mapa,
-        // que contiene la longitud de la tarea.
-        var taskTemplate =
-            ShipStatus.Instance.GetTaskById(
+        
+        // Data.Tasks nos proporciona el TypeId sincronizado,
+        // pero la propiedad Length de la plantilla puede ser None.
+        // Por eso determinamos la categoría comprobando en qué
+        // colección de tareas del mapa se encuentra ese TypeId.
+        var taskLength =
+            ResolveTaskLength(
+                ShipStatus.Instance,
                 taskInfo.TypeId);
 
-        if (taskTemplate == null)
+        if (taskLength ==
+            NormalPlayerTask.TaskLength.None)
         {
             Logger<InfectionPlugin>.Warning(
-                $"No se pudo resolver la plantilla " +
-                $"de tarea tipo {taskInfo.TypeId} " +
+                $"No se pudo determinar la categoría " +
+                $"de la tarea tipo {taskInfo.TypeId} " +
                 $"del jugador {__instance.PlayerId}, " +
                 $"tarea {idx}.");
 
@@ -92,7 +95,7 @@ internal static class InfectionTaskCompletionPatch
             $"jugador {__instance.PlayerId}, " +
             $"tarea {idx}, " +
             $"tipo {taskInfo.TypeId}, " +
-            $"longitud {taskTemplate.Length}.");
+            $"categoría {taskLength}.");
 
         Rpc<InfectionTaskCompleteRpc>
             .Instance
@@ -100,6 +103,77 @@ internal static class InfectionTaskCompletionPatch
                 __instance,
                 new InfectionTaskCompleteData(
                     idx,
-                    (byte)taskTemplate.Length));
+                    (byte)taskLength));
+    }
+    
+    /// <summary>
+    /// Determina si un TypeId pertenece al grupo
+    /// Common, Short o Long del mapa actual.
+    /// </summary>
+    private static NormalPlayerTask.TaskLength
+        ResolveTaskLength(
+            ShipStatus ship,
+            byte typeId)
+    {
+        if (ContainsTaskType(
+                ship.CommonTasks,
+                typeId))
+        {
+            return NormalPlayerTask
+                .TaskLength
+                .Common;
+        }
+
+        if (ContainsTaskType(
+                ship.ShortTasks,
+                typeId))
+        {
+            return NormalPlayerTask
+                .TaskLength
+                .Short;
+        }
+
+        if (ContainsTaskType(
+                ship.LongTasks,
+                typeId))
+        {
+            return NormalPlayerTask
+                .TaskLength
+                .Long;
+        }
+
+        return NormalPlayerTask
+            .TaskLength
+            .None;
+    }
+
+    /// <summary>
+    /// Comprueba si una colección de tareas contiene
+    /// una plantilla con el TypeId indicado.
+    /// </summary>
+    private static bool ContainsTaskType(
+        Il2CppInterop.Runtime.InteropTypes.Arrays
+            .Il2CppReferenceArray<NormalPlayerTask> tasks,
+        byte typeId)
+    {
+        if (tasks == null)
+        {
+            return false;
+        }
+
+        for (var i = 0;
+             i < tasks.Length;
+             i++)
+        {
+            var task = tasks[i];
+
+            if (task != null &&
+                (byte)task.TaskType == typeId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
