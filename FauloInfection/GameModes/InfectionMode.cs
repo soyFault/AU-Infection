@@ -199,6 +199,15 @@ public sealed class InfectionMode : HideAndSeekMode
         HudManager instance)
     {
         base.HudUpdate(instance);
+        
+        // Infection no permite reportar cuerpos.
+        // Mantenemos el botón oculto aunque otro refresh del HUD
+        // intente volver a mostrarlo.
+        if (instance.ReportButton)
+        {
+            instance.ReportButton.SetDisabled();
+            instance.ReportButton.ToggleVisible(false);
+        }
 
         var localPlayer =
             PlayerControl.LocalPlayer;

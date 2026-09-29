@@ -7,24 +7,29 @@ using MiraAPI.Hud;
 namespace FauloInfection.Events;
 
 /// <summary>
-/// Gameplay rules that are global to the Infection game mode.
+/// Reglas globales de jugabilidad del modo Infection.
 /// </summary>
 public static class InfectionGameEvents
 {
     /// <summary>
-    /// Infection replaces murder with conversion, so no murder path is allowed to
-    /// complete while the mode is active. This also protects against the vanilla
-    /// kill keybind or another mod attempting to trigger a normal murder.
+    /// Los asesinatos vanilla deben respetar las mismas reglas
+    /// de equipo y configuración que el resto de Infection.
     /// </summary>
     [RegisterEvent(-10000)]
-    public static void BeforeMurderEventHandler(BeforeMurderEvent @event)
+    public static void BeforeMurderEventHandler(
+        BeforeMurderEvent @event)
     {
         if (!InfectionManager.IsActive)
         {
             return;
         }
-
-        @event.Cancel();
+        
+        if (!InfectionManager.CanKillTarget(
+                @event.Source,
+                @event.Target))
+        {
+            @event.Cancel();
+        }
     }
     
     /// <summary>
@@ -33,7 +38,8 @@ public static class InfectionGameEvents
     /// después de que la intro haya terminado por completo.
     /// </summary>
     [RegisterEvent]
-    public static void IntroEndEventHandler(IntroEndEvent @event)
+    public static void IntroEndEventHandler(
+        IntroEndEvent @event)
     {
         if (!InfectionManager.IsActive ||
             !HudManager.InstanceExists)
@@ -41,7 +47,8 @@ public static class InfectionGameEvents
             return;
         }
 
-        var localPlayer = PlayerControl.LocalPlayer;
+        var localPlayer =
+            PlayerControl.LocalPlayer;
 
         if (localPlayer == null ||
             localPlayer.Data?.Role == null ||
@@ -55,8 +62,14 @@ public static class InfectionGameEvents
             localPlayer.Data.Role,
             true);
 
-        CustomButtonSingleton<InfectButton>
-            .Instance
-            .SetActive(true, localPlayer.Data.Role);
+        var infectButton =
+            CustomButtonSingleton<InfectButton>
+                .Instance;
+        
+        infectButton.ResetCooldownAndOrEffect();
+
+        infectButton.SetActive(
+            true,
+            localPlayer.Data.Role);
     }
 }
