@@ -14,7 +14,11 @@ public static class InfectionVisionController
     private static byte _lastPlayerId =
         byte.MaxValue;
 
-    private static bool? _lastUseFlashlight;
+    private static bool? _lastUseHnsVision;
+
+    private static bool? _lastWasInfected;
+
+    private static bool? _lastWasDead;
 
     private static float _lastFlashlightSize =
         -1f;
@@ -30,7 +34,13 @@ public static class InfectionVisionController
         _lastPlayerId =
             byte.MaxValue;
 
-        _lastUseFlashlight =
+        _lastUseHnsVision =
+            null;
+
+        _lastWasInfected =
+            null;
+
+        _lastWasDead =
             null;
 
         _lastFlashlightSize =
@@ -38,8 +48,11 @@ public static class InfectionVisionController
     }
 
     /// <summary>
-    /// Actualiza la linterna del jugador local cuando cambia
-    /// su equipo o la configuración de visión de Infection.
+    /// Actualiza la iluminación del jugador local cuando cambia
+    /// su equipo, estado o configuración de visión.
+    ///
+    /// La configuración real de la linterna se realiza desde
+    /// InfectionVisionPatches al interceptar PlayerControl.AdjustLighting.
     /// </summary>
     public static void UpdateLocalLighting()
     {
@@ -62,13 +75,17 @@ public static class InfectionVisionController
             OptionGroupSingleton<InfectionOptions>
                 .Instance;
 
-        var useFlashlight =
+        var useHnsVision =
             options.UseHnsVision.Value;
 
-        // La forma de la linterna sigue la separación normal
-        // de Hide and Seek: superviviente o infectado.
+        var isInfected =
+            InfectionManager.IsInfected(player);
+
+        var isDead =
+            player.Data.IsDead;
+
         var flashlightSize =
-            InfectionManager.IsInfected(player)
+            isInfected
                 ? OptionGroupSingleton<HnsImpostorOptions>
                     .Instance
                     .ImpostorFlashlightSize
@@ -79,11 +96,15 @@ public static class InfectionVisionController
                     .Value;
 
         // HudUpdate se ejecuta continuamente.
-        // Solo reaplicamos la iluminación cuando algo relevante cambia.
+        // Solo reconstruimos la iluminación cuando algo relevante cambia.
         if (_lastPlayerId ==
             player.PlayerId &&
-            _lastUseFlashlight ==
-            useFlashlight &&
+            _lastUseHnsVision ==
+            useHnsVision &&
+            _lastWasInfected ==
+            isInfected &&
+            _lastWasDead ==
+            isDead &&
             Mathf.Approximately(
                 _lastFlashlightSize,
                 flashlightSize))
@@ -94,18 +115,22 @@ public static class InfectionVisionController
         _lastPlayerId =
             player.PlayerId;
 
-        _lastUseFlashlight =
-            useFlashlight;
+        _lastUseHnsVision =
+            useHnsVision;
+
+        _lastWasInfected =
+            isInfected;
+
+        _lastWasDead =
+            isDead;
 
         _lastFlashlightSize =
             flashlightSize;
 
-        player.lightSource.useFlashlight =
-            useFlashlight;
-
-        player.lightSource.flashlightSize =
-            flashlightSize;
-
+        // No modificamos directamente useFlashlight.
+        //
+        // AdjustLighting será interceptado por InfectionVisionPatches,
+        // donde reproducimos la configuración que utiliza HnS.
         player.AdjustLighting();
     }
 }
