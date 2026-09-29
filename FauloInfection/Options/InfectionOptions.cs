@@ -70,8 +70,16 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
             5f,
             0.05f,
             MiraNumberSuffixes.Multiplier,
-            "0.00");
+            "0.00")
 
+        {
+            Visible = () =>
+                !OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .UseHnsVision
+                    .Value,
+        };
+    
     public ModdedNumberOption InfectedVision { get; set; } =
         new(
             "FauloInfection.Options.InfectedVision",
@@ -80,7 +88,14 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
             5f,
             0.05f,
             MiraNumberSuffixes.Multiplier,
-            "0.00");
+            "0.00")
+        {
+            Visible = () =>
+                !OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .UseHnsVision
+                    .Value,
+        };
 
     public ModdedNumberOption InitialInfectedVision { get; set; } =
         new(
@@ -90,7 +105,14 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
             5f,
             0.05f,
             MiraNumberSuffixes.Multiplier,
-            "0.00");
+            "0.00")
+        {
+            Visible = () =>
+                !OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .UseHnsVision
+                    .Value,
+        };
 
     public ModdedToggleOption UseHorseModel { get; set; } =
         new(

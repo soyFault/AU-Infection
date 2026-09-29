@@ -38,6 +38,16 @@ internal static class InfectionVisionPatches
         var options =
             OptionGroupSingleton<InfectionOptions>
                 .Instance;
+        
+        // Cuando usamos la visión de Hide and Seek,
+        // la linterna es el sistema de visión autoritativo.
+        //
+        // Los multiplicadores propios de Infection solo
+        // se aplican cuando esa linterna está desactivada.
+        if (options.UseHnsVision.Value)
+        {
+            return;
+        }
 
         float vision;
 
