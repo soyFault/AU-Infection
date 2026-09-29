@@ -30,6 +30,16 @@ public static class InfectionManager
     /// Guarda cuándo puede volver a matar cada jugador infectado.
     /// </summary>
     private static readonly Dictionary<byte, float> NextKillAt = [];
+    
+    /// <summary>
+    /// Guarda temporalmente el asesinato que pertenece a un intento
+    /// de infección fallido.
+    ///
+    /// Esto permite diferenciarlo de un Kill normal, porque un fallo
+    /// de infección debe matar incluso si AllowInfectedKills está apagado.
+    /// </summary>
+    private static (byte SourceId, byte TargetId)?
+        PendingFailedInfectionKill;
 
     /// <summary>
     /// Shared infection cooldown used by the button and host validation.
@@ -132,6 +142,23 @@ public static class InfectionManager
     /// </summary>
     public static bool EveryoneInfected =>
         RemainingSurvivors == 0;
+    
+    /// <summary>
+    /// Indica si este asesinato pertenece al intento de infección
+    /// fallido que el host está procesando actualmente.
+    /// </summary>
+    public static bool IsFailedInfectionKill(
+        PlayerControl? source,
+        PlayerControl? target)
+    {
+        return source != null &&
+               target != null &&
+               PendingFailedInfectionKill.HasValue &&
+               PendingFailedInfectionKill.Value.SourceId ==
+               source.PlayerId &&
+               PendingFailedInfectionKill.Value.TargetId ==
+               target.PlayerId;
+    }
 
     /// <summary>
     /// Inicializa el estado de Infection después
@@ -143,6 +170,8 @@ public static class InfectionManager
         // Limpia los cooldowns que hayan quedado de una ronda anterior.
         NextInfectAt.Clear();
         NextKillAt.Clear();
+        
+        PendingFailedInfectionKill = null;
 
         if (AmongUsClient.Instance == null ||
             !AmongUsClient.Instance.AmHost)
@@ -233,6 +262,54 @@ public static class InfectionManager
             validatedTarget.PlayerId != target.PlayerId)
         {
             return false;
+        }
+        
+        var infectionChance =
+            Mathf.Clamp(
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .InfectionChance
+                    .Value,
+                0f,
+                100f);
+
+        // La tirada ocurre únicamente en el host.
+        // 100 % siempre infecta y 0 % siempre mata.
+        var infectionSucceeded =
+            infectionChance >= 100f ||
+            (infectionChance > 0f &&
+             UnityEngine.Random.Range(
+                 0f,
+                 100f) < infectionChance);
+
+        if (!infectionSucceeded)
+        {
+            // El intento fue válido, así que el botón consume
+            // su cooldown aunque la infección haya fallado.
+            NextInfectAt[source.PlayerId] =
+                Time.time + InfectCooldownSeconds;
+
+            PendingFailedInfectionKill =
+                (source.PlayerId, target.PlayerId);
+
+            try
+            {
+                source.RpcMurderPlayer(
+                    target,
+                    true);
+            }
+            finally
+            {
+                PendingFailedInfectionKill =
+                    null;
+            }
+
+            Logger<InfectionPlugin>.Info(
+                $"Infection attempt failed: " +
+                $"{source.PlayerId} -> {target.PlayerId}. " +
+                $"Chance={infectionChance:0}%.");
+
+            return true;
         }
 
         if (!Infect(target))
@@ -410,6 +487,8 @@ public static class InfectionManager
     {
         NextInfectAt.Clear();
         NextKillAt.Clear();
+        
+        PendingFailedInfectionKill = null;
 
         if (AmongUsClient.Instance == null ||
             !AmongUsClient.Instance.AmHost)

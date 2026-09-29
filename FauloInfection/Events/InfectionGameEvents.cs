@@ -23,6 +23,15 @@ public static class InfectionGameEvents
         {
             return;
         }
+
+        // Una infección fallida tiene su propia regla de muerte
+        // y no depende de AllowInfectedKills ni FriendlyFire.
+        if (InfectionManager.IsFailedInfectionKill(
+                @event.Source,
+                @event.Target))
+        {
+            return;
+        }
         
         if (!InfectionManager.CanKillTarget(
                 @event.Source,
