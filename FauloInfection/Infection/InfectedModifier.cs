@@ -22,6 +22,20 @@ public sealed class InfectedModifier : BaseModifier
     public override void OnActivate()
     {
         base.OnActivate();
+        
+        // Un jugador convertido deja inmediatamente de ser
+        // un superviviente y no debe conservar sus tareas.
+        Player.ClearTasks();
+
+        // El host sincroniza la lista vacía para que todos los clientes
+        // compartan el mismo estado de tareas del jugador convertido.
+        if (AmongUsClient.Instance != null &&
+            AmongUsClient.Instance.AmHost &&
+            Player.Data != null)
+        {
+            Player.Data.RpcSetTasks(
+                Array.Empty<byte>());
+        }
 
         // Every client that receives the synchronized modifier
         // shows the infection notification.

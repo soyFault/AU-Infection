@@ -78,6 +78,99 @@ public sealed class InfectionMode : HideAndSeekMode
             ? GetInfectedBodyType()
             : GetSurvivorBodyType();
     }
+    
+    /// <summary>
+    /// Solo los supervivientes pueden utilizar consolas de tareas,
+    /// y únicamente cuando las tareas están activadas.
+    /// </summary>
+    public override bool CanUseTasks(
+        Console console)
+    {
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        return OptionGroupSingleton<InfectionOptions>
+                   .Instance
+                   .EnableTasks
+                   .Value &&
+               localPlayer != null &&
+               !InfectionManager.IsInfected(localPlayer);
+    }
+    
+    /// <summary>
+    /// Limpia las tareas locales que Hide and Seek puede volver a crear
+    /// durante la inicialización del HUD.
+    ///
+    /// El Seeker inicial nunca debe tener tareas de superviviente.
+    /// Si las tareas están desactivadas, ningún jugador debe conservarlas.
+    /// </summary>
+    public override void Initialize()
+    {
+        base.Initialize();
+
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (localPlayer == null ||
+            localPlayer.Data == null)
+        {
+            return;
+        }
+
+        var options =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        if (InfectionManager.IsInfected(localPlayer) ||
+            !options.EnableTasks.Value)
+        {
+            localPlayer.ClearTasks();
+        }
+    }
+    
+    
+    /// <summary>
+    /// Copia las cantidades de tareas configuradas en Infection
+    /// a las opciones vanilla antes de que HnS prepare la ronda.
+    /// </summary>
+    public override void AssignRoles(
+        out bool runOriginal,
+        LogicRoleSelectionNormal instance)
+    {
+        var infectionOptions =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        var vanillaOptions =
+            GameOptionsManager
+                .Instance
+                .currentNormalGameOptions;
+
+        if (infectionOptions.EnableTasks.Value)
+        {
+            vanillaOptions.NumCommonTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.CommonTasks.Value);
+
+            vanillaOptions.NumShortTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.ShortTasks.Value);
+
+            vanillaOptions.NumLongTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.LongTasks.Value);
+        }
+        else
+        {
+            vanillaOptions.NumCommonTasks = 0;
+            vanillaOptions.NumShortTasks = 0;
+            vanillaOptions.NumLongTasks = 0;
+        }
+
+        base.AssignRoles(
+            out runOriginal,
+            instance);
+    }
 
     // Inicializa el estado de Infection solo después de asignar todos los roles,
     // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
@@ -88,8 +181,17 @@ public sealed class InfectionMode : HideAndSeekMode
         LogicRoleSelectionNormal instance)
     {
         base.PostAssignRoles(instance);
+        
+        // Solo el host decide el estado inicial
+        // y la lista de tareas de cada jugador.
+        if (AmongUsClient.Instance == null ||
+            !AmongUsClient.Instance.AmHost)
+        {
+            return;
+        }
 
         InfectionManager.InitializeRound();
+        InfectionTaskManager.AssignInitialTasks();
     }
     
     /// <summary>

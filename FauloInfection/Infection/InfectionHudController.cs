@@ -1,4 +1,5 @@
 using System;
+using FauloInfection.Options;
 using MiraAPI.GameOptions;
 using MiraAPI.HnsReimplemented.Options;
 using UnityEngine;
@@ -28,6 +29,8 @@ public static class InfectionHudController
         HudManager hud)
     {
         var now = Time.time;
+        
+        UpdateTaskPanelVisibility(hud);
 
         if (now >= _nextTrackerUpdateAt)
         {
@@ -43,6 +46,44 @@ public static class InfectionHudController
                 now + DangerUpdateInterval;
 
             UpdateDangerMeter(hud);
+        }
+    }
+    
+    /// <summary>
+    /// Oculta completamente el panel de tareas cuando
+    /// el jugador no tiene tareas reales que mostrar.
+    /// </summary>
+    private static void UpdateTaskPanelVisibility(
+        HudManager hud)
+    {
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (!hud.TaskPanel ||
+            localPlayer == null ||
+            localPlayer.Data == null)
+        {
+            return;
+        }
+
+        var options =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        var hasTasks =
+            localPlayer.Data.Tasks != null &&
+            localPlayer.Data.Tasks.Count > 0;
+
+        var showTaskPanel =
+            options.EnableTasks.Value &&
+            !InfectionManager.IsInfected(localPlayer) &&
+            hasTasks;
+
+        if (hud.TaskPanel.gameObject.activeSelf !=
+            showTaskPanel)
+        {
+            hud.TaskPanel.gameObject.SetActive(
+                showTaskPanel);
         }
     }
 
