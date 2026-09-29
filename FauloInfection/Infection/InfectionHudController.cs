@@ -69,15 +69,34 @@ public static class InfectionHudController
         var options =
             OptionGroupSingleton<InfectionOptions>
                 .Instance;
+        
+        var hasPendingTasks = false;
 
-        var hasTasks =
-            localPlayer.Data.Tasks != null &&
-            localPlayer.Data.Tasks.Count > 0;
+        var tasks =
+            localPlayer.Data.Tasks;
+
+        if (tasks != null)
+        {
+            for (var i = 0;
+                 i < tasks.Count;
+                 i++)
+            {
+                var task =
+                    tasks[i];
+
+                if (task != null &&
+                    !task.Complete)
+                {
+                    hasPendingTasks = true;
+                    break;
+                }
+            }
+        }
 
         var showTaskPanel =
             options.EnableTasks.Value &&
             !InfectionManager.IsInfected(localPlayer) &&
-            hasTasks;
+            hasPendingTasks;
 
         if (hud.TaskPanel.gameObject.activeSelf !=
             showTaskPanel)

@@ -181,14 +181,6 @@ public sealed class InfectionMode : HideAndSeekMode
         LogicRoleSelectionNormal instance)
     {
         base.PostAssignRoles(instance);
-        
-        // Solo el host decide el estado inicial
-        // y la lista de tareas de cada jugador.
-        if (AmongUsClient.Instance == null ||
-            !AmongUsClient.Instance.AmHost)
-        {
-            return;
-        }
 
         InfectionManager.InitializeRound();
         InfectionTaskManager.AssignInitialTasks();
