@@ -26,6 +26,70 @@ public static class InfectionHudController
     private static ObjectPoolBehavior? _pingPool;
     private static float _nextPingAt;
     private static float _hidePingsAt;
+    
+    private static int _infectionPopupCount;
+
+    /// <summary>
+    /// Limpia el estado visual temporal de Infection
+    /// al comenzar una nueva ronda.
+    /// </summary>
+    public static void ResetRound()
+    {
+        _nextTrackerUpdateAt = 0f;
+        _nextDangerUpdateAt = 0f;
+        _nextPingAt = 0f;
+        _hidePingsAt = 0f;
+        _infectionPopupCount = 0;
+
+        if (_pingPool != null)
+        {
+            Object.Destroy(
+                _pingPool.gameObject);
+
+            _pingPool = null;
+        }
+    }
+
+    /// <summary>
+    /// Muestra una notificación visual cuando un superviviente
+    /// se convierte en infectado.
+    ///
+    /// Esta opción no afecta las notificaciones de muertes reales.
+    /// </summary>
+    public static void NotifyInfection(
+        PlayerControl player)
+    {
+        if (!OptionGroupSingleton<InfectionOptions>
+                .Instance
+                .NotifyInfections
+                .Value ||
+            !HudManager.InstanceExists)
+        {
+            return;
+        }
+
+        // Reutilizamos la presentación de HnS para mostrar
+        // visualmente que un jugador dejó de ser superviviente.
+        // Esto no marca al jugador como muerto.
+        HudManager.Instance.NotifyOfDeath();
+
+        var popup =
+            GameManagerCreator
+                .Instance
+                .HideAndSeekManagerPrefab
+                .DeathPopupPrefab;
+
+        _infectionPopupCount++;
+
+        var item =
+            Object.Instantiate(
+                popup,
+                HudManager.Instance.transform.parent);
+
+        item.Show(
+            player,
+            _infectionPopupCount);
+    }
 
 
     public static void Update(

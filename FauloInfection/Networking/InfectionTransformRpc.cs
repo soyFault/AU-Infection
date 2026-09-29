@@ -60,5 +60,10 @@ public sealed class InfectionTransformRpc(
 
         InfectionVisuals.ApplyInfected(
             target);
+        
+        // La transformación y su notificación son presentación local.
+        // NotifyInfection decide internamente si la opción está activada.
+        InfectionHudController.NotifyInfection(
+            target);
     }
 }

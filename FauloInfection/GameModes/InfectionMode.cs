@@ -125,7 +125,11 @@ public sealed class InfectionMode : HideAndSeekMode
                 false);
 
         base.Initialize();
-    
+        
+        // Limpia contadores, pings y notificaciones visuales
+        // que pudieran quedar de la ronda anterior.
+        InfectionHudController.ResetRound();
+        
         // Cada ronda puede reutilizar los mismos IDs de tareas,
         // así que eliminamos el historial de la ronda anterior.
         InfectionTaskEvents.ResetRound();
