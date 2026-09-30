@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using BepInEx.Unity.IL2CPP.Utils;
 using FauloInfection.Buttons;
 using FauloInfection.GameModes;
@@ -96,28 +97,47 @@ public static class InfectionVisuals
             wranglerVisual == null ||
             player == null ||
             player.Data == null ||
-            player.MyPhysics == null)
+            player.MyPhysics == null ||
+            GameManagerCreator.Instance == null ||
+            GameManagerCreator.Instance.HideAndSeekManagerPrefab == null)
         {
             return false;
         }
 
-        var previousOutfit =
+        var currentOutfit =
             player.CurrentOutfit;
 
-        var previousOutfitType =
-            player.CurrentOutfitType;
-
-        if (previousOutfit == null ||
-            !ApplyHorseWranglerOutfit(
-                player))
+        if (currentOutfit == null)
         {
             return false;
         }
 
+        var hideAndSeekManager =
+            GameManagerCreator
+                .Instance
+                .HideAndSeekManagerPrefab;
+
+        // Preparamos una copia lógica del outfit HorseWrangler para los
+        // PoolablePlayer del visual, pero NO se lo aplicamos todavía al
+        // PlayerControl real.
+        //
+        // Los fixes anteriores llamaban temporalmente SetOutfit(...HorseWrangler)
+        // sobre el jugador real y luego intentaban restaurarlo. Aunque el body
+        // volvía a Horse, el sistema de cosméticos podía dejar vivo el sombrero
+        // del Wrangler durante la animación, que es el objeto flotante observado.
+        var wranglerOutfit =
+            hideAndSeekManager
+                .horseWranglerOutfit;
+
+        wranglerOutfit.ColorId =
+            currentOutfit.ColorId;
+
+        wranglerOutfit.PlayerName =
+            currentOutfit.PlayerName;
+
         // Configuramos el visual todavía inactivo.
-        // Si el Animator comienza antes de que el PoolablePlayer interior
-        // tenga los datos correctos, la secuencia puede quedarse en su
-        // primer frame o perder los AnimationEvents.
+        // Si comienza antes de que el PoolablePlayer interior tenga los datos
+        // correctos, la secuencia puede quedarse en un frame incorrecto.
         suitVisual.gameObject.SetActive(
             false);
 
@@ -127,12 +147,12 @@ public static class InfectionVisuals
         wranglerVisual.SetBodyType(
             PlayerBodyTypes.Normal);
 
-        wranglerVisual.UpdateFromPlayerData(
-            player.Data,
-            player.CurrentOutfitType,
+        // Alimentamos directamente el PoolablePlayer con el outfit especial.
+        // No necesitamos cambiar CurrentOutfitType del jugador real para ello.
+        wranglerVisual.UpdateFromPlayerOutfit(
+            wranglerOutfit,
             PlayerMaterial.MaskType.None,
             false,
-            null,
             false);
 
         wranglerVisual.SetFlipX(
@@ -141,15 +161,28 @@ public static class InfectionVisuals
         wranglerVisual.ToggleName(
             false);
 
+        // HnSSeekerSpawnHorse anima este hijo desde escala 0.
+        // UpdateFromPlayerOutfit/SetBodyType pueden dejarlo con la escala
+        // normal antes de que SpriteAnim aplique el primer frame.
+        wranglerVisual.transform.localPosition =
+            new Vector3(
+                -0.31f,
+                -0.18f,
+                0.1f);
+
+        wranglerVisual.transform.localScale =
+            new Vector3(
+                0f,
+                0f,
+                1f);
+
         suitVisual.SetBodyCosmeticsVisible(
             false);
 
-        suitVisual.UpdateFromPlayerData(
-            player.Data,
-            player.CurrentOutfitType,
+        suitVisual.UpdateFromPlayerOutfit(
+            wranglerOutfit,
             PlayerMaterial.MaskType.None,
             false,
-            null,
             false);
 
         suitVisual.SetFlipX(
@@ -158,13 +191,41 @@ public static class InfectionVisuals
         suitVisual.ToggleName(
             false);
 
-        // El outfit HorseWrangler solo se toma prestado para poblar
-        // los PoolablePlayer de la presentación. El PlayerControl real
-        // debe seguir siendo Horse hasta que termine la transformación.
-        player.SetOutfit(
-            previousOutfit,
-            previousOutfitType);
+        // El visual exterior HorseWrangle no debe mostrar cosméticos normales
+        // encima del traje. Solo deben verse las piezas dedicadas de la
+        // animación: Horse Parent, SeekerHand, Zipper, BackgroundSuit, etc.
+        SetChildActive(
+            suitVisual.transform,
+            "HatSlot",
+            false);
 
+        SetChildActive(
+            suitVisual.transform,
+            "Skin",
+            false);
+
+        SetChildActive(
+            suitVisual.transform,
+            "Visor",
+            false);
+
+        SetChildActive(
+            suitVisual.transform,
+            "PetSlot",
+            false);
+
+        SetChildActive(
+            suitVisual.transform,
+            "NameText_TMP",
+            false);
+
+        SetChildActive(
+            suitVisual.transform,
+            "ColorBlindText",
+            false);
+
+        // El PlayerControl real nunca cambió de outfit aquí. Solo aseguramos
+        // que siga usando el body Horse mientras el clon reproduce el clip.
         player.MyPhysics.SetBodyType(
             PlayerBodyTypes.Horse);
 
@@ -305,8 +366,18 @@ public static class InfectionVisuals
             suitVisual.transform.localRotation =
                 Quaternion.identity;
 
+            // HorseWranglePoolablePlayer está construido para la cámara
+            // del IntroCutscene y resulta ~1.5x demasiado grande en gameplay.
+            // 0.67343 es la escala usada por la rama Horse del propio prefab
+            // y compensa ese tamaño al colocarlo sobre un PlayerControl.
+            const float horseWrangleGameplayScale =
+                0.67343f;
+
             suitVisual.transform.localScale =
-                Vector3.one;
+                new Vector3(
+                    horseWrangleGameplayScale,
+                    horseWrangleGameplayScale,
+                    1f);
 
             SetLayerRecursively(
                 suitVisual.gameObject,
@@ -343,14 +414,14 @@ public static class InfectionVisuals
                 var animation =
                     introPrefab.HnSSeekerSpawnHorseAnim;
 
-                var animator =
-                    suitVisual.GetComponent<Animator>();
+                var component =
+                    suitVisual.GetComponent<SpriteAnim>();
 
-                if (animator == null ||
+                if (component == null ||
                     animation == null)
                 {
                     Logger<InfectionPlugin>.Warning(
-                        $"HorseWrangle Animator or clip was missing for player {player.PlayerId}. " +
+                        $"HorseWrangle SpriteAnim or clip was missing for player {player.PlayerId}. " +
                         "Applying the final Wrangler outfit without the transition.");
 
                     Object.Destroy(
@@ -365,46 +436,45 @@ public static class InfectionVisuals
                         $"HorseWrangle transition started for player {player.PlayerId}. " +
                         $"Clip={animation.name}, Length={animation.length:0.00}s.");
 
-                    // La animación completa pertenece al AnimatorController
-                    // HorseWrangleIntro del root HorseWranglePoolablePlayer.
+                    // Capturamos solo los renderers ACTIVOS del PlayerControl real
+                    // antes de mostrar la copia HorseWrangle. El clon ya existe como
+                    // hijo, pero sigue inactivo, así que no debe entrar en esta lista.
                     //
-                    // En los intentos anteriores llamábamos SpriteAnim.Play()
-                    // sobre una copia ya activa. Eso esperaba la duración del
-                    // clip, pero la presentación visual y sus AnimationEvents
-                    // (incluido el yeehaw) no llegaban a ejecutarse.
-                    //
-                    // Esta vez configuramos el clon inactivo, lo activamos
-                    // cuando ya está listo, reiniciamos su AnimatorController
-                    // y reproducimos explícitamente su estado real desde t=0.
+                    // El bug anterior usaba GetComponentsInChildren(true) y filtraba
+                    // únicamente renderer.enabled. Eso también capturaba los renderers
+                    // del clon inactivo y los deshabilitaba antes de reproducir el clip,
+                    // por eso toda la transformación quedaba invisible.
+                    var originalRenderers =
+                        CaptureVisibleRenderers(
+                            player.gameObject);
+
+                    SetRenderersEnabled(
+                        originalRenderers,
+                        false);
+
                     suitVisual.gameObject.SetActive(
                         true);
 
-                    animator.enabled =
-                        true;
+                    // Esta es exactamente la API usada por el IntroCutscene
+                    // real de Hide and Seek. SpriteAnim sustituye el clip del
+                    // Animator compartido y también procesa sus AnimationEvents,
+                    // incluido el yeehaw.
+                    component.Play(
+                        animation,
+                        1f);
 
-                    animator.Rebind();
-
-                    animator.Update(
+                    // Fuerza inmediatamente el frame inicial del clip.
+                    // En ese frame el PoolablePlayer interior está a escala 0,
+                    // por lo que no debe aparecer un tripulante gigante encima
+                    // del caballo antes de la revelación.
+                    component.SetTime(
                         0f);
-
-                    animator.Play(
-                        "HnSSeekerSpawnHorse",
-                        0,
-                        0f);
-
-                    animator.Update(
-                        0f);
-
-                    // El visual del intro ya está activo encima del jugador.
-                    // Ocultamos CosmeticsLayer del PlayerControl real
-                    // para evitar que se vea el caballo normal con sombrero.
-                    player.cosmetics.gameObject.SetActive(
-                        false);
 
                     yield return new WaitForSeconds(
                         animation.length);
 
-                    player.cosmetics.gameObject.SetActive(
+                    SetRenderersEnabled(
+                        originalRenderers,
                         true);
 
                     Object.Destroy(
@@ -455,15 +525,6 @@ public static class InfectionVisuals
                 player);
         }
 
-        // Una transformación Horse puede ocultar temporalmente
-        // el CosmeticsLayer completo. Siempre lo restauramos antes
-        // de devolver el control al jugador.
-        if (!player.cosmetics.gameObject.activeSelf)
-        {
-            player.cosmetics.gameObject.SetActive(
-                true);
-        }
-
         player.MyPhysics.FlipX =
             wasFacingLeft;
 
@@ -512,6 +573,76 @@ public static class InfectionVisuals
         killButton.SetActive(
             true,
             player.Data.Role);
+    }
+
+    /// <summary>
+    /// Activa o desactiva un hijo directo del visual HorseWrangle.
+    /// </summary>
+    private static void SetChildActive(
+        Transform root,
+        string childName,
+        bool active)
+    {
+        var child =
+            root.Find(
+                childName);
+
+        if (child != null)
+        {
+            child.gameObject.SetActive(
+                active);
+        }
+    }
+
+    /// <summary>
+    /// Captura únicamente los Renderer visibles que ya pertenecen
+    /// al PlayerControl real. Incluye SpriteRenderer/MeshRenderer/etc.
+    ///
+    /// Esto es importante porque algunos cosméticos, como ciertos sombreros,
+    /// no necesariamente usan el mismo tipo de renderer que el body.
+    ///
+    /// Debe llamarse antes de activar el visual HorseWrangle para no incluir
+    /// los renderers del clon.
+    /// </summary>
+    private static List<Renderer> CaptureVisibleRenderers(
+        GameObject root)
+    {
+        var result =
+            new List<Renderer>();
+
+        var renderers =
+            root.GetComponentsInChildren<Renderer>(
+                true);
+
+        foreach (var renderer in renderers)
+        {
+            if (renderer != null &&
+                renderer.enabled &&
+                renderer.gameObject.activeInHierarchy)
+            {
+                result.Add(
+                    renderer);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Activa o desactiva un conjunto previamente capturado de renderers.
+    /// </summary>
+    private static void SetRenderersEnabled(
+        IEnumerable<Renderer> renderers,
+        bool enabled)
+    {
+        foreach (var renderer in renderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled =
+                    enabled;
+            }
+        }
     }
 
     /// <summary>
