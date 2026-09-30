@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using AmongUs.Data;
@@ -9,7 +10,10 @@ using MiraAPI.GameOptions;
 using MiraAPI.GameModes;
 using MiraAPI.HnsReimplemented;
 using MiraAPI.HnsReimplemented.Options;
+using MiraAPI.Utilities;
+using PowerTools;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace FauloInfection.GameModes;
 
@@ -39,7 +43,11 @@ public sealed class InfectionMode : HideAndSeekMode
     /// </summary>
     public static bool ShouldUseHorseModel()
     {
-        return AprilFoolsMode.ShouldHorseAround();
+        return OptionGroupSingleton<InfectionOptions>
+                   .Instance
+                   .UseHorseModel
+                   .Value ||
+               AprilFoolsMode.ShouldHorseAround();
     }
     
     /// <summary>
@@ -90,12 +98,338 @@ public sealed class InfectionMode : HideAndSeekMode
     public override PlayerBodyTypes GetBodyType(
         PlayerControl player)
     {
+        if (ShouldUseHorseModel())
+        {
+            if (!InfectionManager.IsInfected(player))
+            {
+                return PlayerBodyTypes.Horse;
+            }
+
+            // Un infectado recién convertido sigue siendo Horse hasta
+            // que InfectionVisuals aplica el outfit real HorseWrangler.
+            //
+            // Esto evita que el cambio de equipo lo convierta en
+            // Wrangler un frame antes de que empiece la animación.
+            return player.CurrentOutfitType ==
+                   PlayerOutfitType.HorseWrangler
+                ? PlayerBodyTypes.Normal
+                : PlayerBodyTypes.Horse;
+        }
+
         return InfectionManager.IsInfected(player)
             ? GetInfectedBodyType()
             : GetSurvivorBodyType();
     }
 
-    
+    /// <summary>
+    /// Cuando UseHorseModel está activo reproducimos explícitamente
+    /// la variante Horse/Wrangler del intro de Hide and Seek.
+    ///
+    /// Sin esta opción dejamos que MiraAPI ejecute su intro normal.
+    /// </summary>
+    public override IEnumerator IntroCutscene(
+        IntroCutscene __instance)
+    {
+        if (!ShouldUseHorseModel())
+        {
+            var original =
+                base.IntroCutscene(
+                    __instance);
+
+            while (original.MoveNext())
+            {
+                yield return original.Current;
+            }
+
+            yield break;
+        }
+
+        SoundManager.Instance.PlaySound(
+            __instance.IntroStinger,
+            false,
+            1f,
+            null);
+
+        __instance.LogPlayerRoleData();
+
+        __instance.HideAndSeekPanels.SetActive(
+            true);
+
+        if (PlayerControl.LocalPlayer.Data.Role.IsImpostor)
+        {
+            __instance.CrewmateRules.SetActive(
+                false);
+
+            __instance.ImpostorRules.SetActive(
+                true);
+        }
+        else
+        {
+            __instance.CrewmateRules.SetActive(
+                true);
+
+            __instance.ImpostorRules.SetActive(
+                false);
+        }
+
+        __instance.ImpostorName.gameObject.SetActive(
+            true);
+
+        __instance.ImpostorTitle.gameObject.SetActive(
+            true);
+
+        __instance.BackgroundBar.enabled =
+            false;
+
+        __instance.TeamTitle.gameObject.SetActive(
+            false);
+
+        var impostor =
+            PlayerControl.AllPlayerControls
+                .ToArray()
+                .FirstOrDefault(
+                    player =>
+                        player.Data != null &&
+                        player.Data.Role != null &&
+                        player.Data.Role.IsImpostor);
+
+        if (impostor != null)
+        {
+            // No aplicamos todavía HorseWrangler al PlayerControl real.
+            //
+            // Mientras CurrentOutfitType siga siendo Default,
+            // GetBodyType mantiene al Seeker como Horse para los clientes
+            // que todavía deben ver la transformación dentro del mapa.
+            __instance.ImpostorName.text =
+                impostor.Data.PlayerName;
+        }
+        else
+        {
+            __instance.ImpostorName.text =
+                "???";
+        }
+
+        yield return new WaitForSecondsRealtime(
+            0.1f);
+
+        if (impostor != null)
+        {
+            __instance.ImpostorTitle.text =
+                impostor.Data.Role.GetRoleName();
+        }
+
+        PoolablePlayer? playerSlot =
+            null;
+
+        if (impostor != null)
+        {
+            playerSlot =
+                __instance.CreatePlayer(
+                    1,
+                    1,
+                    impostor.Data,
+                    false);
+
+            playerSlot.SetBodyType(
+                PlayerBodyTypes.Normal);
+
+            playerSlot.SetFlipX(
+                false);
+
+            playerSlot.transform.localPosition =
+                __instance.impostorPos;
+
+            playerSlot.transform.localScale =
+                Vector3.one *
+                __instance.impostorScale;
+        }
+
+        yield return ShipStatus.Instance
+            .CosmeticsCache
+            .PopulateFromPlayers();
+
+        yield return new WaitForSecondsRealtime(
+            6f);
+
+        if (playerSlot != null)
+        {
+            playerSlot.gameObject.SetActive(
+                false);
+        }
+
+        __instance.HideAndSeekPanels.SetActive(
+            false);
+
+        __instance.CrewmateRules.SetActive(
+            false);
+
+        __instance.ImpostorRules.SetActive(
+            false);
+
+        HnsMusicHandler? musicHandler =
+            null;
+
+        HnsDangerMeter? dangerMeter =
+            null;
+
+        if (HudManager.InstanceExists)
+        {
+            musicHandler =
+                HudManager.Instance
+                    .gameObject
+                    .GetComponent<HnsMusicHandler>();
+
+            dangerMeter =
+                HudManager.Instance
+                    .gameObject
+                    .GetComponent<HnsDangerMeter>();
+        }
+
+        musicHandler?.StartMusicWithIntro();
+
+        var hideTimer =
+            10f;
+
+        if (PlayerControl.LocalPlayer.Data.Role.IsImpostor)
+        {
+            __instance.HideAndSeekTimerText
+                .gameObject
+                .SetActive(
+                    true);
+
+            // El propio Seeker ve la presentación especial del intro.
+            // Esta es la misma ruta visual que utiliza Horse Mode HnS:
+            // HorseWrangleVisualSuit + HnSSeekerSpawnHorseAnim.
+            //
+            // Hide and Seek ya tiene preparado el outfit HorseWrangler
+            // cuando alimenta HorseWrangleVisualPlayer. Infection hace
+            // lo mismo aquí antes de iniciar la animación del intro.
+            if (impostor != null)
+            {
+                InfectionVisuals.ApplyHorseWranglerOutfit(
+                    impostor);
+            }
+
+            var poolablePlayer =
+                __instance.HorseWrangleVisualSuit;
+
+            poolablePlayer.gameObject.SetActive(
+                true);
+
+            poolablePlayer.SetBodyType(
+                PlayerBodyTypes.Seeker);
+
+            __instance
+                .HorseWrangleVisualPlayer
+                .SetBodyType(
+                    PlayerBodyTypes.Normal);
+
+            __instance
+                .HorseWrangleVisualPlayer
+                .UpdateFromPlayerData(
+                    PlayerControl.LocalPlayer.Data,
+                    PlayerControl.LocalPlayer.CurrentOutfitType,
+                    PlayerMaterial.MaskType.None,
+                    false,
+                    null,
+                    false);
+
+            poolablePlayer.SetBodyCosmeticsVisible(
+                false);
+
+            poolablePlayer.UpdateFromPlayerData(
+                PlayerControl.LocalPlayer.Data,
+                PlayerControl.LocalPlayer.CurrentOutfitType,
+                PlayerMaterial.MaskType.None,
+                false,
+                null,
+                false);
+
+            var component =
+                poolablePlayer
+                    .GetComponent<SpriteAnim>();
+
+            poolablePlayer.gameObject.SetActive(
+                true);
+
+            poolablePlayer.ToggleName(
+                false);
+
+            component.Play(
+                __instance.HnSSeekerSpawnHorseAnim,
+                1f);
+
+            // La presentación actual de HnS mantiene el traje detenido
+            // en el punto de transformación y reanuda la animación
+            // durante los últimos cinco segundos del hide timer.
+            //
+            // Esto evita que el Wrangler aparezca instantáneamente al
+            // comenzar la cuenta atrás.
+            component.SetTime(
+                5f);
+
+            component.Pause();
+
+            var animationResumed =
+                false;
+
+            while (hideTimer > 0f)
+            {
+                __instance
+                    .HideAndSeekTimerText
+                    .text =
+                    Mathf.RoundToInt(
+                            hideTimer)
+                        .ToString();
+
+                if (!animationResumed &&
+                    hideTimer <= 5f)
+                {
+                    component.Resume();
+
+                    animationResumed =
+                        true;
+                }
+
+                hideTimer -=
+                    Time.deltaTime;
+
+                yield return null;
+            }
+
+            if (!animationResumed)
+            {
+                component.Resume();
+            }
+        }
+        else
+        {
+            if (HideAndSeekHudHelper.Instance != null)
+            {
+                HideAndSeekHudHelper.Instance.HideCountdown =
+                    hideTimer;
+            }
+
+            // Los supervivientes no ven el visual privado del Seeker.
+            // Ellos deben ver al PlayerControl real quitarse el traje
+            // mediante HnSSeekerSpawnHorseInGameAnim.
+            if (impostor != null)
+            {
+                InfectionVisuals.ApplyInfected(
+                    impostor,
+                    false,
+                    true);
+            }
+        }
+
+        ShipStatus.Instance.StartSFX();
+
+        musicHandler?.OnGameStart();
+        dangerMeter?.OnGameStart();
+
+        Object.Destroy(
+            __instance.gameObject);
+    }
     
     /// <summary>
     /// Solo los supervivientes pueden utilizar consolas de tareas,

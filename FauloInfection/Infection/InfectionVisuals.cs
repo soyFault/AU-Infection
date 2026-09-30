@@ -3,7 +3,9 @@ using BepInEx.Unity.IL2CPP.Utils;
 using FauloInfection.Buttons;
 using FauloInfection.GameModes;
 using MiraAPI.Hud;
+using PowerTools;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace FauloInfection.Infection;
 
@@ -79,7 +81,8 @@ public static class InfectionVisuals
 
     public static void ApplyInfected(
         PlayerControl? player,
-        bool blockMovement = true)
+        bool blockMovement = true,
+        bool waitForInitialHideWindow = false)
     {
         if (player == null ||
             player.MyPhysics == null)
@@ -115,7 +118,8 @@ public static class InfectionVisuals
         player.StartCoroutine(
             CoTransformIntoSeeker(
                 player,
-                blockMovement));
+                blockMovement,
+                waitForInitialHideWindow));
     }
 
     public static void RemoveInfected(
@@ -142,7 +146,8 @@ public static class InfectionVisuals
 
     private static IEnumerator CoTransformIntoSeeker(
         PlayerControl player,
-        bool blockMovement)
+        bool blockMovement,
+        bool waitForInitialHideWindow)
     {
         var wasMoveable =
             player.moveable;
@@ -153,7 +158,7 @@ public static class InfectionVisuals
         // Solo bloqueamos movimiento al jugador dueño durante
         // una conversión que ocurre dentro de la partida.
         //
-        // El intro del Seeker administra su propio hide time.
+        // Los clientes remotos únicamente reproducen la presentación.
         if (blockMovement &&
             player.AmOwner)
         {
@@ -166,34 +171,28 @@ public static class InfectionVisuals
 
         if (InfectionMode.ShouldUseHorseModel())
         {
-            // Ahora ShouldHorseAround() está realmente activo durante
-            // Infection, así que primero dejamos que Hide and Seek
-            // prepare sus cosméticos especiales de Horse Wrangler.
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.SetSpecialCosmetics(
-                    player);
-            }
-
-            // Fallback por seguridad.
+            // HnSSeekerSpawnHorseInGameAnim no reproduce de forma fiable
+            // la transformación visual dentro del modo custom de MiraAPI.
             //
-            // Si el GameManager activo no llegó a aplicar el outfit
-            // especial, lo hacemos manualmente.
-            if (player.CurrentOutfitType !=
-                PlayerOutfitType.HorseWrangler)
+            // Para esta ruta usamos exactamente la presentación del intro:
+            //
+            // HorseWrangleVisualSuit
+            //     +
+            // HorseWrangleVisualPlayer
+            //     +
+            // HnSSeekerSpawnHorseAnim
+            //
+            // El jugador real queda oculto debajo y solo vuelve a mostrarse
+            // cuando termina la animación.
+            if (!ApplyHorseWranglerOutfit(
+                    player))
             {
-                ApplyHorseWranglerOutfit(
+                player.MyPhysics.SetBodyType(
+                    PlayerBodyTypes.Normal);
+
+                ResetCosmeticsScale(
                     player);
             }
-
-            // Horse Wrangler utiliza cuerpo Normal.
-            player.MyPhysics.SetBodyType(
-                PlayerBodyTypes.Normal);
-
-            // Cambiar de Horse a Normal puede dejar la escala
-            // del caballo aplicada a CosmeticsLayer.
-            ResetCosmeticsScale(
-                player);
 
             player.MyPhysics.FlipX =
                 wasFacingLeft;
@@ -201,38 +200,155 @@ public static class InfectionVisuals
             player.cosmetics.SetFlipX(
                 wasFacingLeft);
 
+            player.cosmetics.SetBodyCosmeticsVisible(
+                false);
+
+            var originalSuit =
+                introPrefab.HorseWrangleVisualSuit;
+
+            var originalWrangler =
+                introPrefab.HorseWrangleVisualPlayer;
+
+            var suitVisual =
+                Object.Instantiate(
+                    originalSuit,
+                    player.transform);
+
+            var wranglerVisual =
+                Object.Instantiate(
+                    originalWrangler,
+                    player.transform);
+
+            // Los visuales del IntroCutscene están creados para una cámara
+            // distinta. Al convertirlos en hijos del PlayerControl usamos
+            // coordenadas locales de gameplay y la misma layer del jugador.
+            suitVisual.transform.localPosition =
+                new Vector3(
+                    0f,
+                    0f,
+                    -0.25f);
+
+            suitVisual.transform.localRotation =
+                Quaternion.identity;
+
+            suitVisual.transform.localScale =
+                Vector3.one;
+
+            wranglerVisual.transform.localPosition =
+                new Vector3(
+                    0f,
+                    0f,
+                    -0.24f);
+
+            wranglerVisual.transform.localRotation =
+                Quaternion.identity;
+
+            wranglerVisual.transform.localScale =
+                Vector3.one;
+
+            SetLayerRecursively(
+                suitVisual.gameObject,
+                player.gameObject.layer);
+
+            SetLayerRecursively(
+                wranglerVisual.gameObject,
+                player.gameObject.layer);
+
+            suitVisual.gameObject.SetActive(
+                true);
+
+            wranglerVisual.gameObject.SetActive(
+                true);
+
+            suitVisual.SetBodyType(
+                PlayerBodyTypes.Seeker);
+
+            wranglerVisual.SetBodyType(
+                PlayerBodyTypes.Normal);
+
+            // El Wrangler interior utiliza exactamente el mismo outfit
+            // final que acabamos de preparar en el PlayerControl real.
+            wranglerVisual.UpdateFromPlayerData(
+                player.Data,
+                player.CurrentOutfitType,
+                PlayerMaterial.MaskType.None,
+                false,
+                null,
+                false);
+
+            wranglerVisual.SetFlipX(
+                wasFacingLeft);
+
+            wranglerVisual.ToggleName(
+                false);
+
+            // Igual que el intro original: el traje usa los datos del
+            // jugador, pero oculta sus cosméticos mientras se reproduce
+            // HnSSeekerSpawnHorseAnim.
+            suitVisual.SetBodyCosmeticsVisible(
+                false);
+
+            suitVisual.UpdateFromPlayerData(
+                player.Data,
+                player.CurrentOutfitType,
+                PlayerMaterial.MaskType.None,
+                false,
+                null,
+                false);
+
+            suitVisual.SetFlipX(
+                wasFacingLeft);
+
+            suitVisual.ToggleName(
+                false);
+
+            var component =
+                suitVisual.GetComponent<SpriteAnim>();
+
             var animation =
-                introPrefab
-                    .HnSSeekerSpawnHorseInGameAnim;
+                introPrefab.HnSSeekerSpawnHorseAnim;
 
-            // Esta transformación concreta de Horse Mode utiliza
-            // PlayerControl.AnimateCustom en el HnS real.
-            //
-            // CoPlayCustomAnimation reproducía correctamente el audio
-            // y la duración, pero no la presentación visual completa
-            // del Horse Wrangler.
-            player.AnimateCustom(
-                animation);
+            component.Play(
+                animation,
+                1f);
 
-            // AnimateCustom inicia su propia coroutine.
-            // Nosotros esperamos únicamente para devolver movimiento
-            // y refrescar el HUD cuando la transformación haya terminado.
+            // La parte visible de "quitarse el traje" comienza alrededor
+            // del segundo 5 del mismo clip que utiliza el tutorial.
+            component.SetTime(
+                5f);
+
+            if (waitForInitialHideWindow)
+            {
+                // El Seeker inicial debe coincidir con la cuenta de HnS:
+                // mantiene el traje durante los primeros cinco segundos
+                // y ejecuta la transformación durante los últimos cinco.
+                component.Pause();
+
+                yield return new WaitForSeconds(
+                    5f);
+
+                component.Resume();
+            }
+
+            var remainingAnimationTime =
+                Mathf.Max(
+                    0.1f,
+                    animation.length - 5f);
+
             yield return new WaitForSeconds(
-                animation.length);
+                remainingAnimationTime);
 
-            // Nos aseguramos de no conservar escala de Horse
-            // después de terminar la transformación.
+            Object.Destroy(
+                suitVisual.gameObject);
+
+            Object.Destroy(
+                wranglerVisual.gameObject);
+
             ResetCosmeticsScale(
                 player);
 
             player.cosmetics.SetBodyCosmeticsVisible(
                 true);
-
-            player.MyPhysics.FlipX =
-                wasFacingLeft;
-
-            player.cosmetics.SetFlipX(
-                wasFacingLeft);
         }
         else
         {
@@ -319,6 +435,30 @@ public static class InfectionVisuals
         killButton.SetActive(
             true,
             player.Data.Role);
+    }
+
+    /// <summary>
+    /// Hace que los visuales copiados desde IntroCutscene utilicen
+    /// la misma layer de render que el PlayerControl del mapa.
+    /// </summary>
+    private static void SetLayerRecursively(
+        GameObject gameObject,
+        int layer)
+    {
+        gameObject.layer =
+            layer;
+
+        var transform =
+            gameObject.transform;
+
+        for (var i = 0;
+             i < transform.childCount;
+             i++)
+        {
+            SetLayerRecursively(
+                transform.GetChild(i).gameObject,
+                layer);
+        }
     }
 
     /// <summary>
