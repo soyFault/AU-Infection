@@ -4,7 +4,7 @@
 
 This mod modifies the custom HnS gamemode from Mira API to turn it into an Infection Mode similar to AU3D's but with slightly different since I've never played 3D lol just watched one video. This is an alpha cuz I've not tested it fully yet, if you have any problems open an issue in GH.
 
--# Disclaimer: AI was used during the making of this mod. It's not entirely vibecoded lol but I'm fully transparent since I needed the help (still learning C#)
+> Disclaimer: AI was used during the making of this mod. It's not entirely vibecoded lol but I'm fully transparent since I needed the help (still learning C#)
 
 ## How to download
 Go to Releases and choose the appropiate DLL for your Among Us version (current support: v18[judge update] and v19[influencer update])
