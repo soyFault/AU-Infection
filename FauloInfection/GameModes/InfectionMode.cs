@@ -1,326 +1,651 @@
 using System.Collections;
-using BepInEx.Unity.IL2CPP.Utils;
-using FauloInfection.Buttons;
-using FauloInfection.GameModes;
-using MiraAPI.Hud;
+using System.Collections.Generic;
+using System.Linq;
+using AmongUs.Data;
+using FauloInfection.GameOver;
+using FauloInfection.Infection;
+using FauloInfection.Options;
+using MiraAPI.GameEnd;
+using MiraAPI.GameOptions;
+using MiraAPI.GameModes;
+using MiraAPI.HnsReimplemented;
+using MiraAPI.HnsReimplemented.Options;
+using MiraAPI.Utilities;
+using PowerTools;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
-namespace FauloInfection.Infection;
+namespace FauloInfection.GameModes;
 
-/// <summary>
-/// Presentación visual local de un jugador convertido al equipo infectado.
-/// El estado real de infección sigue perteneciendo a InfectedModifier.
-/// </summary>
-public static class InfectionVisuals
+public sealed class InfectionMode : HideAndSeekMode
 {
+    public static Color InfectionColor { get; } =
+        new Color32(69, 214, 107, 255);
+
+    // Hace el modo visible porque Mira API por defecto los oculta en builds no dev.
+    // (Makes the gamemode selectable bc Mira API hides it by default in non-dev builds)
+    public override bool HideMode => false;
+
+    public override string Name =>
+        "FauloInfection.GameMode.Infection.Name";
+
+    public override string Description =>
+        "FauloInfection.GameMode.Infection.Description";
+
+    public override Color Color => InfectionColor;
+
     /// <summary>
-    /// Aplica el outfit especial utilizado por el Wrangler
-    /// en Hide and Seek Horse Mode.
+    /// Determina si Infection debe usar la presentación
+    /// Horse/Wrangler de Hide and Seek.
     ///
-    /// El Wrangler no es un PlayerBodyTypes independiente:
-    /// utiliza cuerpo Normal junto con PlayerOutfitType.HorseWrangler.
+    /// La opción propia del modo permite usarla aunque
+    /// April Fools no esté activo.
     /// </summary>
-    public static bool ApplyHorseWranglerOutfit(
-        PlayerControl? player)
+    public static bool ShouldUseHorseModel()
     {
-        if (player == null ||
-            player.Data == null ||
-            player.MyPhysics == null ||
-            GameManagerCreator.Instance == null ||
-            GameManagerCreator.Instance.HideAndSeekManagerPrefab == null)
+        return OptionGroupSingleton<InfectionOptions>
+                   .Instance
+                   .UseHorseModel
+                   .Value ||
+               AprilFoolsMode.ShouldHorseAround();
+    }
+    
+    /// <summary>
+    /// Devuelve el tipo de cuerpo usado por cualquier miembro
+    /// del equipo infectado.
+    /// </summary>
+    public static PlayerBodyTypes GetInfectedBodyType()
+    {
+        // El Wrangler de HnS utiliza el cuerpo Normal.
+        // Su apariencia especial proviene de las animaciones
+        // HorseWrangle/HnSSeekerSpawnHorse.
+        if (ShouldUseHorseModel())
         {
-            return false;
+            return PlayerBodyTypes.Normal;
         }
 
-        var hideAndSeekManager =
-            GameManagerCreator
-                .Instance
-                .HideAndSeekManagerPrefab;
-
-        var currentOutfit =
-            player.CurrentOutfit;
-
-        if (currentOutfit == null)
+        if (AprilFoolsMode.ShouldLongAround())
         {
-            return false;
+            return PlayerBodyTypes.LongSeeker;
         }
 
-        // Hide and Seek conserva el color y el nombre del jugador,
-        // pero cambia a su outfit especial de Horse Wrangler.
-        hideAndSeekManager
-            .horseWranglerOutfit
-            .ColorId =
-            currentOutfit.ColorId;
+        return PlayerBodyTypes.Seeker;
+    }
 
-        hideAndSeekManager
-            .horseWranglerOutfit
-            .PlayerName =
-            currentOutfit.PlayerName;
+    /// <summary>
+    /// Devuelve el tipo de cuerpo normal de los supervivientes.
+    /// </summary>
+    public static PlayerBodyTypes GetSurvivorBodyType()
+    {
+        if (ShouldUseHorseModel())
+        {
+            return PlayerBodyTypes.Horse;
+        }
 
-        player.SetOutfit(
-            hideAndSeekManager.horseWranglerOutfit,
-            PlayerOutfitType.HorseWrangler);
+        if (AprilFoolsMode.ShouldLongAround())
+        {
+            return PlayerBodyTypes.Long;
+        }
 
-        // El outfit HorseWrangler se presenta sobre cuerpo Normal.
-        player.MyPhysics.SetBodyType(
-            PlayerBodyTypes.Normal);
+        return PlayerBodyTypes.Normal;
+    }
 
-        ResetCosmeticsScale(
-            player);
+    /// <summary>
+    /// HideAndSeekMode solo reconoce como Seeker al Impostor base.
+    /// Infection también debe tratar como Seeker a los jugadores
+    /// convertidos mediante InfectedModifier.
+    /// </summary>
+    public override PlayerBodyTypes GetBodyType(
+        PlayerControl player)
+    {
+        if (ShouldUseHorseModel())
+        {
+            if (!InfectionManager.IsInfected(player))
+            {
+                return PlayerBodyTypes.Horse;
+            }
 
-        player.cosmetics.SetBodyCosmeticsVisible(
+            // Un infectado recién convertido sigue siendo Horse hasta
+            // que InfectionVisuals aplica el outfit real HorseWrangler.
+            //
+            // Esto evita que el cambio de equipo lo convierta en
+            // Wrangler un frame antes de que empiece la animación.
+            return player.CurrentOutfitType ==
+                   PlayerOutfitType.HorseWrangler
+                ? PlayerBodyTypes.Normal
+                : PlayerBodyTypes.Horse;
+        }
+
+        return InfectionManager.IsInfected(player)
+            ? GetInfectedBodyType()
+            : GetSurvivorBodyType();
+    }
+
+    /// <summary>
+    /// Cuando UseHorseModel está activo reproducimos explícitamente
+    /// la variante Horse/Wrangler del intro de Hide and Seek.
+    ///
+    /// Sin esta opción dejamos que MiraAPI ejecute su intro normal.
+    /// </summary>
+    public override IEnumerator IntroCutscene(
+        IntroCutscene __instance)
+    {
+        if (!ShouldUseHorseModel())
+        {
+            var original =
+                base.IntroCutscene(
+                    __instance);
+
+            while (original.MoveNext())
+            {
+                yield return original.Current;
+            }
+
+            yield break;
+        }
+
+        SoundManager.Instance.PlaySound(
+            __instance.IntroStinger,
+            false,
+            1f,
+            null);
+
+        __instance.LogPlayerRoleData();
+
+        __instance.HideAndSeekPanels.SetActive(
             true);
 
-        player.cosmetics.SetFlipX(
-            player.MyPhysics.FlipX);
-
-        return true;
-    }
-
-    public static void ApplyInfected(
-        PlayerControl? player,
-        bool blockMovement = true)
-    {
-        if (player == null ||
-            player.MyPhysics == null)
+        if (PlayerControl.LocalPlayer.Data.Role.IsImpostor)
         {
-            return;
-        }
+            __instance.CrewmateRules.SetActive(
+                false);
 
-        // Si por alguna razón el prefab de intro no está disponible,
-        // aplicamos al menos la presentación final correcta.
-        if (!HudManager.InstanceExists ||
-            HudManager.Instance.IntroPrefab == null)
-        {
-            if (InfectionMode.ShouldUseHorseModel())
-            {
-                ApplyHorseWranglerOutfit(
-                    player);
-            }
-            else
-            {
-                player.MyPhysics.SetBodyType(
-                    InfectionMode.GetInfectedBodyType());
-
-                ResetCosmeticsScale(
-                    player);
-
-                player.cosmetics.SetFlipX(
-                    player.MyPhysics.FlipX);
-            }
-
-            return;
-        }
-
-        player.StartCoroutine(
-            CoTransformIntoSeeker(
-                player,
-                blockMovement));
-    }
-
-    public static void RemoveInfected(
-        PlayerControl? player)
-    {
-        if (player == null ||
-            player.MyPhysics == null)
-        {
-            return;
-        }
-
-        player.MyPhysics.SetBodyType(
-            InfectionMode.GetSurvivorBodyType());
-
-        ResetCosmeticsScale(
-            player);
-
-        player.cosmetics.SetBodyCosmeticsVisible(
-            true);
-
-        player.cosmetics.SetFlipX(
-            player.MyPhysics.FlipX);
-    }
-
-    private static IEnumerator CoTransformIntoSeeker(
-        PlayerControl player,
-        bool blockMovement)
-    {
-        var wasMoveable =
-            player.moveable;
-
-        var wasFacingLeft =
-            player.MyPhysics.FlipX;
-
-        // Solo bloqueamos movimiento al jugador dueño durante
-        // una conversión que ocurre dentro de la partida.
-        //
-        // Los clientes remotos únicamente reproducen la presentación.
-        if (blockMovement &&
-            player.AmOwner)
-        {
-            player.NetTransform.Halt();
-            player.moveable = false;
-        }
-
-        var introPrefab =
-            HudManager.Instance.IntroPrefab;
-
-        if (InfectionMode.ShouldUseHorseModel())
-        {
-            // Hasta este punto un infectado recién convertido continúa
-            // usando BodyType.Horse porque todavía conserva su outfit Default.
-            //
-            // Aplicar HorseWrangler cambia de forma atómica la presentación
-            // real que necesita la animación de transformación.
-            if (!ApplyHorseWranglerOutfit(
-                    player))
-            {
-                player.MyPhysics.SetBodyType(
-                    PlayerBodyTypes.Normal);
-
-                ResetCosmeticsScale(
-                    player);
-            }
-
-            player.MyPhysics.FlipX =
-                wasFacingLeft;
-
-            player.cosmetics.SetFlipX(
-                wasFacingLeft);
-
-            var animation =
-                introPrefab
-                    .HnSSeekerSpawnHorseInGameAnim;
-
-            // AnimateCustom puede ser reemplazado por el refresh normal
-            // de movimiento/idle en jugadores remotos.
-            //
-            // Ejecutamos directamente la animación en PlayerAnimations y
-            // marcamos DoingCustomAnimation para que no sea sustituida.
-            player.MyPhysics.DoingCustomAnimation =
-                true;
-
-            yield return player
-                .MyPhysics
-                .Animations
-                .CoPlayCustomAnimation(
-                    animation);
-
-            player.cosmetics.AnimateSkinIdle();
-
-            player.MyPhysics
-                .Animations
-                .PlayIdleAnimation();
-
-            player.cosmetics.SetBodyCosmeticsVisible(
+            __instance.ImpostorRules.SetActive(
                 true);
-
-            player.MyPhysics.DoingCustomAnimation =
-                false;
-
-            // Al pasar de Horse a Normal, CosmeticsLayer puede conservar
-            // la escala del caballo. Restauramos explícitamente la escala
-            // del body actual para evitar el "mini-tripulante".
-            ResetCosmeticsScale(
-                player);
         }
         else
         {
-            player.MyPhysics.SetBodyType(
-                InfectionMode.GetInfectedBodyType());
+            __instance.CrewmateRules.SetActive(
+                true);
 
-            ResetCosmeticsScale(
-                player);
-
-            // Cambiar el BodyType puede dejar cosméticos mirando
-            // hacia la dirección anterior hasta que el jugador se mueva.
-            player.MyPhysics.FlipX =
-                wasFacingLeft;
-
-            player.cosmetics.SetFlipX(
-                wasFacingLeft);
-
-            if (AprilFoolsMode.ShouldLongAround())
-            {
-                yield return player.MyPhysics.CoAnimateCustom(
-                    introPrefab.HnSSeekerSpawnLongInGameAnim);
-            }
-            else
-            {
-                // Igual que en la transformación HnS normal:
-                // los cosméticos desaparecen durante la animación.
-                // CoAnimateCustom vuelve a mostrarlos al terminar.
-                player.cosmetics.SetBodyCosmeticsVisible(
-                    false);
-
-                yield return player.MyPhysics.CoAnimateCustom(
-                    introPrefab.HnSSeekerSpawnAnim);
-            }
-
-            ResetCosmeticsScale(
-                player);
+            __instance.ImpostorRules.SetActive(
+                false);
         }
 
-        player.MyPhysics.FlipX =
-            wasFacingLeft;
-
-        player.cosmetics.SetFlipX(
-            wasFacingLeft);
-
-        if (blockMovement &&
-            player.AmOwner)
-        {
-            player.moveable =
-                wasMoveable;
-        }
-
-        if (!player.AmOwner)
-        {
-            yield break;
-        }
-
-        // La transformación HnS puede refrescar el HUD después
-        // de que InfectedModifier ya haya habilitado los botones.
-        if (!HudManager.InstanceExists ||
-            player.Data?.Role == null)
-        {
-            yield break;
-        }
-
-        HudManager.Instance.SetHudActive(
-            player,
-            player.Data.Role,
+        __instance.ImpostorName.gameObject.SetActive(
             true);
 
-        var infectButton =
-            CustomButtonSingleton<InfectButton>.Instance;
+        __instance.ImpostorTitle.gameObject.SetActive(
+            true);
 
-        infectButton.ResetCooldownAndOrEffect();
+        __instance.BackgroundBar.enabled =
+            false;
 
-        infectButton.SetActive(
-            true,
-            player.Data.Role);
+        __instance.TeamTitle.gameObject.SetActive(
+            false);
 
-        var killButton =
-            CustomButtonSingleton<InfectedKillButton>.Instance;
+        var impostor =
+            PlayerControl.AllPlayerControls
+                .ToArray()
+                .FirstOrDefault(
+                    player =>
+                        player.Data != null &&
+                        player.Data.Role != null &&
+                        player.Data.Role.IsImpostor);
 
-        killButton.ResetCooldownAndOrEffect();
+        if (impostor != null)
+        {
+            // El PlayerControl real permanece Horse durante el intro.
+            // La jerarquía HorseWrangle toma prestado el outfit Wrangler
+            // únicamente para poblar su visual interno.
+            __instance.ImpostorName.text =
+                impostor.Data.PlayerName;
+        }
+        else
+        {
+            __instance.ImpostorName.text =
+                "???";
+        }
 
-        killButton.SetActive(
-            true,
-            player.Data.Role);
+        yield return new WaitForSecondsRealtime(
+            0.1f);
+
+        if (impostor != null)
+        {
+            __instance.ImpostorTitle.text =
+                impostor.Data.Role.GetRoleName();
+        }
+
+        PoolablePlayer? playerSlot =
+            null;
+
+        if (impostor != null)
+        {
+            playerSlot =
+                __instance.CreatePlayer(
+                    1,
+                    1,
+                    impostor.Data,
+                    false);
+
+            playerSlot.SetBodyType(
+                PlayerBodyTypes.Normal);
+
+            playerSlot.SetFlipX(
+                false);
+
+            playerSlot.transform.localPosition =
+                __instance.impostorPos;
+
+            playerSlot.transform.localScale =
+                Vector3.one *
+                __instance.impostorScale;
+        }
+
+        yield return ShipStatus.Instance
+            .CosmeticsCache
+            .PopulateFromPlayers();
+
+        yield return new WaitForSecondsRealtime(
+            6f);
+
+        if (playerSlot != null)
+        {
+            playerSlot.gameObject.SetActive(
+                false);
+        }
+
+        __instance.HideAndSeekPanels.SetActive(
+            false);
+
+        __instance.CrewmateRules.SetActive(
+            false);
+
+        __instance.ImpostorRules.SetActive(
+            false);
+
+        HnsMusicHandler? musicHandler =
+            null;
+
+        HnsDangerMeter? dangerMeter =
+            null;
+
+        if (HudManager.InstanceExists)
+        {
+            musicHandler =
+                HudManager.Instance
+                    .gameObject
+                    .GetComponent<HnsMusicHandler>();
+
+            dangerMeter =
+                HudManager.Instance
+                    .gameObject
+                    .GetComponent<HnsDangerMeter>();
+        }
+
+        musicHandler?.StartMusicWithIntro();
+
+        var hideTimer =
+            10f;
+
+        if (PlayerControl.LocalPlayer.Data.Role.IsImpostor)
+        {
+            __instance.HideAndSeekTimerText
+                .gameObject
+                .SetActive(
+                    true);
+
+            // El propio Seeker usa directamente la jerarquía HorseWrangle
+            // que ya pertenece a IntroCutscene. No clonamos ni reparentamos
+            // ninguna de sus piezas.
+            var poolablePlayer =
+                __instance.HorseWrangleVisualSuit;
+
+            InfectionVisuals.ConfigureHorseWrangleVisual(
+                poolablePlayer,
+                __instance.HorseWrangleVisualPlayer,
+                PlayerControl.LocalPlayer,
+                false);
+
+            var component =
+                poolablePlayer
+                    .GetComponent<SpriteAnim>();
+
+            // El helper configura la jerarquía mientras está inactiva.
+            // El intro vanilla la activa justo antes de reproducir
+            // HnSSeekerSpawnHorseAnim.
+            poolablePlayer.gameObject.SetActive(
+                true);
+
+            component.Play(
+                __instance.HnSSeekerSpawnHorseAnim,
+                1f);
+
+            while (hideTimer > 0f)
+            {
+                __instance
+                    .HideAndSeekTimerText
+                    .text =
+                    Mathf.RoundToInt(
+                            hideTimer)
+                        .ToString();
+
+                hideTimer -=
+                    Time.deltaTime;
+
+                yield return null;
+            }
+
+            if (impostor != null)
+            {
+                InfectionVisuals.ApplyHorseWranglerOutfit(
+                    impostor);
+            }
+
+        }
+        else
+        {
+            if (HideAndSeekHudHelper.Instance != null)
+            {
+                HideAndSeekHudHelper.Instance.HideCountdown =
+                    hideTimer;
+            }
+
+            // Los supervivientes no ven el visual privado del Seeker.
+            // Reproducimos en el mapa una copia completa de la jerarquía
+            // HorseWrangle del intro sobre el PlayerControl real.
+            if (impostor != null)
+            {
+                InfectionVisuals.ApplyInfected(
+                    impostor,
+                    false);
+            }
+        }
+
+        ShipStatus.Instance.StartSFX();
+
+        musicHandler?.OnGameStart();
+        dangerMeter?.OnGameStart();
+
+        Object.Destroy(
+            __instance.gameObject);
+    }
+    
+    /// <summary>
+    /// Solo los supervivientes pueden utilizar consolas de tareas,
+    /// y únicamente cuando las tareas están activadas.
+    /// </summary>
+    public override bool CanUseTasks(
+        Console console)
+    {
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        return OptionGroupSingleton<InfectionOptions>
+                   .Instance
+                   .EnableTasks
+                   .Value &&
+               localPlayer != null &&
+               !InfectionManager.IsInfected(localPlayer);
+    }
+    
+    /// <summary>
+    /// Limpia las tareas locales que Hide and Seek puede volver a crear
+    /// durante la inicialización del HUD.
+    ///
+    /// El Seeker inicial nunca debe tener tareas de superviviente.
+    /// Si las tareas están desactivadas, ningún jugador debe conservarlas.
+    /// </summary>
+    public override void Initialize()
+    {
+        var options =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        // Infection usa su propia opción de Adrenalina como duración
+        // de la fase final de Hide and Seek.
+        //
+        // Debe configurarse antes de base.Initialize(), porque la
+        // infraestructura de HnS prepara sus temporizadores durante
+        // esa inicialización.
+        OptionGroupSingleton<HnsFinalHideOptions>
+            .Instance
+            .FinalHideTime
+            .SetValue(
+                options.AdrenalineActivationTime.Value,
+                false);
+
+        base.Initialize();
+        
+        // Limpia contadores, pings y notificaciones visuales
+        // que pudieran quedar de la ronda anterior.
+        InfectionHudController.ResetRound();
+        
+        // La nueva ronda crea una nueva fuente de iluminación,
+        // así que debe volver a aplicarse la configuración de Infection.
+        InfectionVisionController.ResetRound();
+        
+        // Cada ronda puede reutilizar los mismos IDs de tareas,
+        // así que eliminamos el historial de la ronda anterior.
+        InfectionTaskEvents.ResetRound();
+
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (localPlayer == null ||
+            localPlayer.Data == null)
+        {
+            return;
+        }
+        
+        // Options ya fue obtenido antes de inicializar HnS.
+
+        if (InfectionManager.IsInfected(localPlayer) ||
+            !options.EnableTasks.Value)
+        {
+            localPlayer.ClearTasks();
+        }
+    }
+    
+    /// <summary>
+    /// Copia las cantidades de tareas configuradas en Infection
+    /// a las opciones vanilla antes de que HnS prepare la ronda.
+    /// </summary>
+    public override void AssignRoles(
+        out bool runOriginal,
+        LogicRoleSelectionNormal instance)
+    {
+        var infectionOptions =
+            OptionGroupSingleton<InfectionOptions>
+                .Instance;
+
+        var vanillaOptions =
+            GameOptionsManager
+                .Instance
+                .currentNormalGameOptions;
+
+        if (infectionOptions.EnableTasks.Value)
+        {
+            vanillaOptions.NumCommonTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.CommonTasks.Value);
+
+            vanillaOptions.NumShortTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.ShortTasks.Value);
+
+            vanillaOptions.NumLongTasks =
+                Mathf.RoundToInt(
+                    infectionOptions.LongTasks.Value);
+        }
+        else
+        {
+            vanillaOptions.NumCommonTasks = 0;
+            vanillaOptions.NumShortTasks = 0;
+            vanillaOptions.NumLongTasks = 0;
+        }
+
+        base.AssignRoles(
+            out runOriginal,
+            instance);
+    }
+
+    // Inicializa el estado de Infection solo después de asignar todos los roles,
+    // para poder identificar de forma fiable al Seeker inicial mediante su rol base.
+    //
+    // Initialize Infection state only after all player roles have been assigned,
+    // so the initial Seeker can be reliably identified from their base role.
+    public override void PostAssignRoles(
+        LogicRoleSelectionNormal instance)
+    {
+        base.PostAssignRoles(instance);
+
+        InfectionManager.InitializeRound();
+        InfectionTaskManager.AssignInitialTasks();
+    }
+    
+    /// <summary>
+    /// Reemplaza las condiciones de victoria de Hide and Seek
+    /// por condiciones basadas en el equipo real de Infection.
+    ///
+    /// Solo el host puede terminar la partida.
+    /// </summary>
+    public override void CheckGameEnd(
+        out bool runOriginal,
+        LogicGameFlowNormal instance)
+    {
+        // No queremos que HideAndSeekMode ejecute después
+        // sus condiciones basadas en Impostor/Crewmate.
+        runOriginal = false;
+
+        if (AmongUsClient.Instance == null ||
+            AmongUsClient.Instance.IsGameOver ||
+            !AmongUsClient.Instance.AmHost)
+        {
+            return;
+        }
+
+        var infectedCount =
+            InfectionManager.GetInfected().Count;
+
+        var survivorCount =
+            InfectionManager.RemainingSurvivors;
+
+        // Ya no queda ningún superviviente vivo.
+        // Los infectados ganan.
+        if (survivorCount == 0 &&
+            infectedCount > 0)
+        {
+            CustomGameOver.Trigger<InfectedVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedInfected()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
+
+            return;
+        }
+
+        // Ya no queda ningún infectado vivo.
+        // Los supervivientes ganan.
+        if (infectedCount == 0 &&
+            survivorCount > 0)
+        {
+            CustomGameOver.Trigger<SurvivorVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedSurvivors()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
+
+            return;
+        }
+
+        // Si termina el tiempo de Hide and Seek y todavía
+        // queda al menos un superviviente, sobreviven y ganan.
+        if (survivorCount > 0 &&
+            HideAndSeekHudHelper.Instance != null &&
+            HideAndSeekHudHelper.Instance.AllTimersExpired())
+        {
+            CustomGameOver.Trigger<SurvivorVictoryGameOver>(
+                InfectionManager
+                    .GetConnectedSurvivors()
+                    .Select(player => player.Data)
+                    .Where(data => data != null));
+        }
     }
 
     /// <summary>
-    /// Restaura la escala visual correspondiente al BodyType actual.
+    /// Decide qué jugadores aparecen como ganadores.
     ///
-    /// Cambiar de Horse a Normal puede dejar CosmeticsLayer utilizando
-    /// la escala del modelo anterior hasta el siguiente refresh vanilla.
+    /// Aquí usamos el estado de Infection y no el rol base,
+    /// porque un infectado convertido puede seguir teniendo
+    /// Engineer o Crewmate como rol.
+    ///
+    /// Los muertos conectados siguen siendo parte de su equipo.
+    /// Los desconectados no aparecen como ganadores.
     /// </summary>
-    private static void ResetCosmeticsScale(
-        PlayerControl player)
+    public override List<NetworkedPlayerInfo>? CalculateWinners()
     {
-        player.cosmetics.SetScale(
-            player.MyPhysics.Animations.DefaultPlayerScale,
-            player.defaultCosmeticsScale);
+        var infectedWon =
+            InfectionManager.RemainingSurvivors == 0;
+
+        var winningTeam =
+            infectedWon
+                ? InfectionManager.GetConnectedInfected()
+                : InfectionManager.GetConnectedSurvivors();
+
+        var winners =
+            new List<NetworkedPlayerInfo>();
+
+        foreach (var player in winningTeam)
+        {
+            if (player.Data != null)
+            {
+                winners.Add(player.Data);
+            }
+        }
+
+        return winners;
+    }
+
+    public override void HudUpdate(
+        HudManager instance)
+    {
+        base.HudUpdate(instance);
+        
+        // Infection no permite reportar cuerpos.
+        // Mantenemos el botón oculto aunque otro refresh del HUD
+        // intente volver a mostrarlo.
+        if (instance.ReportButton)
+        {
+            instance.ReportButton.SetDisabled();
+            instance.ReportButton.ToggleVisible(false);
+        }
+
+        var localPlayer =
+            PlayerControl.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.Data?.Role != null &&
+            localPlayer.Data.Role.IsImpostor)
+        {
+            // El Seeker inicial usa el botón Kill vanilla.
+            // Si los asesinatos están desactivados, mantenemos ese botón oculto
+            // incluso si Among Us refresca el HUD e intenta mostrarlo otra vez.
+            if (!OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .AllowInfectedKills
+                    .Value)
+            {
+                instance.KillButton.ToggleVisible(false);
+            }
+        }
+        
+        // Mantiene sincronizados los elementos de Hide and Seek adaptados
+        // a Infection: peligro, contador de conversiones y demás HUD propio.
+        InfectionHudController.Update(instance);
+        
+        // La linterna es presentación local y debe adaptarse si
+        // el jugador cambia de superviviente a infectado.
+        InfectionVisionController.UpdateLocalLighting();
     }
 }
