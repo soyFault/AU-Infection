@@ -7,7 +7,7 @@ This mod modifies the custom HnS gamemode from Mira API to turn it into an Infec
 > Disclaimer: AI was used during the making of this mod. It's not entirely vibecoded lol but I'm fully transparent since I needed the help (still learning C#)
 
 ## How to download
-Go to Releases and choose the appropiate DLL for your Among Us version (current support: v18[judge update] and v19[influencer update])
+Go to Releases and choose the appropiate DLL for your Among Us version (current support: v18 [judge update] and v19 [influencer update])
 
 ## Customizable
 You can play the classic Seeker mode or play with the (slightly buggy -visually-) Wrangler mode. May add the Long mode but not very soon.

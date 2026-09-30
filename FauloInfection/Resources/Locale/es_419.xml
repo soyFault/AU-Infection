@@ -6,7 +6,6 @@ de que se agote el tiempo.</string>
     <string name="FauloInfection.Modifier.Infected.Name">Infectado</string>
     <string name="FauloInfection.Button.Infect">Infectar</string>
     <string name="FauloInfection.Hud.PlayerInfected">Fue infectado</string>
-
     <string name="FauloInfection.Options.Group">Infección</string>
     <string name="FauloInfection.Options.AllowInfectedKills">Permitir asesinatos de infectados</string>
     <string name="FauloInfection.Options.FriendlyFire">Fuego amigo</string>
@@ -18,6 +17,7 @@ de que se agote el tiempo.</string>
     <string name="FauloInfection.Options.InitialInfectedVision">Visión del infectado inicial</string>
     <string name="FauloInfection.Options.UseHorseModel">Usar modelo de caballo</string>
     <string name="FauloInfection.Options.CrewmatesCanVent">Los supervivientes pueden usar ductos</string>
+    <string name="FauloInfection.Options.InfectedCanVent">Los infectados pueden usar ductos</string>
     <string name="FauloInfection.Options.VentUses">Usos de ductos</string>
     <string name="FauloInfection.Options.VentDuration">Duración en ductos</string>
     <string name="FauloInfection.Options.VentCooldown">Recarga de ductos</string>
@@ -28,11 +28,9 @@ de que se agote el tiempo.</string>
     <string name="FauloInfection.Options.LongTasks">Tareas largas</string>
     <string name="FauloInfection.Options.DisableProximityIndicators">Desactivar indicadores de proximidad</string>
     <string name="FauloInfection.Options.InfectedCanSabotageDoors">Los infectados pueden sabotear puertas</string>
-
     <string name="FauloInfection.Button.Kill">Matar</string>
     <string name="FauloInfection.GameOver.Infected.Win">¡Los infectados ganan!</string>
     <string name="FauloInfection.GameOver.Survivors.Win">¡Los supervivientes ganan!</string>
-
     <string name="FauloInfection.Options.SurvivorFlashlightSize">Tamaño Linterna Tripulantes</string>
     <string name="FauloInfection.Options.InfectedFlashlightSize">Tamaño Linterna infectados</string>
 </resources>

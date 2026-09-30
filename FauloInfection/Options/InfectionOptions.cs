@@ -42,7 +42,7 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                     .AllowInfectedKills
                     .Value,
         };
-    
+
     public ModdedNumberOption InfectionChance { get; set; } =
         new(
             "FauloInfection.Options.InfectionChance",
@@ -137,7 +137,7 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                     .UseHnsVision
                     .Value,
         };
-    
+
     public ModdedNumberOption InfectedVision { get; set; } =
         new(
             "FauloInfection.Options.InfectedVision",
@@ -177,10 +177,26 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
             "FauloInfection.Options.UseHorseModel",
             false);
 
+    /// <summary>
+    /// Determines whether survivors may use vents.
+    /// Determina si los supervivientes pueden usar ductos.
+    /// </summary>
     public ModdedToggleOption CrewmatesCanVent { get; set; } =
         new(
             "FauloInfection.Options.CrewmatesCanVent",
             true);
+
+    /// <summary>
+    /// Determines whether the initial Seeker and converted infected
+    /// players may use vents.
+    ///
+    /// Determina si el Seeker inicial y los infectados convertidos
+    /// pueden usar ductos.
+    /// </summary>
+    public ModdedToggleOption InfectedCanVent { get; set; } =
+        new(
+            "FauloInfection.Options.InfectedCanVent",
+            false);
 
     public ModdedNumberOption VentUses { get; set; } =
         new(
@@ -196,6 +212,10 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                 OptionGroupSingleton<InfectionOptions>
                     .Instance
                     .CrewmatesCanVent
+                    .Value ||
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .InfectedCanVent
                     .Value,
         };
 
@@ -213,6 +233,10 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                 OptionGroupSingleton<InfectionOptions>
                     .Instance
                     .CrewmatesCanVent
+                    .Value ||
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .InfectedCanVent
                     .Value,
         };
 
@@ -230,6 +254,10 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
                 OptionGroupSingleton<InfectionOptions>
                     .Instance
                     .CrewmatesCanVent
+                    .Value ||
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .InfectedCanVent
                     .Value,
         };
 
