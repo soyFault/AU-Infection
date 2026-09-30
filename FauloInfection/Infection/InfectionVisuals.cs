@@ -3,6 +3,7 @@ using BepInEx.Unity.IL2CPP.Utils;
 using FauloInfection.Buttons;
 using FauloInfection.GameModes;
 using MiraAPI.Hud;
+using UnityEngine;
 
 namespace FauloInfection.Infection;
 
@@ -12,8 +13,73 @@ namespace FauloInfection.Infection;
 /// </summary>
 public static class InfectionVisuals
 {
-    public static void ApplyInfected(
+    /// <summary>
+    /// Aplica el outfit especial utilizado por el Wrangler
+    /// en Hide and Seek Horse Mode.
+    ///
+    /// El Wrangler no es un PlayerBodyTypes independiente:
+    /// utiliza cuerpo Normal junto con PlayerOutfitType.HorseWrangler.
+    /// </summary>
+    public static bool ApplyHorseWranglerOutfit(
         PlayerControl? player)
+    {
+        if (player == null ||
+            player.Data == null ||
+            player.MyPhysics == null ||
+            GameManagerCreator.Instance == null ||
+            GameManagerCreator.Instance.HideAndSeekManagerPrefab == null)
+        {
+            return false;
+        }
+
+        var hideAndSeekManager =
+            GameManagerCreator
+                .Instance
+                .HideAndSeekManagerPrefab;
+
+        var currentOutfit =
+            player.CurrentOutfit;
+
+        if (currentOutfit == null)
+        {
+            return false;
+        }
+
+        // Hide and Seek conserva el color y el nombre del jugador,
+        // pero cambia a su outfit especial de Horse Wrangler.
+        hideAndSeekManager
+            .horseWranglerOutfit
+            .ColorId =
+            currentOutfit.ColorId;
+
+        hideAndSeekManager
+            .horseWranglerOutfit
+            .PlayerName =
+            currentOutfit.PlayerName;
+
+        player.SetOutfit(
+            hideAndSeekManager.horseWranglerOutfit,
+            PlayerOutfitType.HorseWrangler);
+
+        // El outfit HorseWrangler se presenta sobre cuerpo Normal.
+        player.MyPhysics.SetBodyType(
+            PlayerBodyTypes.Normal);
+
+        ResetCosmeticsScale(
+            player);
+
+        player.cosmetics.SetBodyCosmeticsVisible(
+            true);
+
+        player.cosmetics.SetFlipX(
+            player.MyPhysics.FlipX);
+
+        return true;
+    }
+
+    public static void ApplyInfected(
+        PlayerControl? player,
+        bool blockMovement = true)
     {
         if (player == null ||
             player.MyPhysics == null)
@@ -22,21 +88,34 @@ public static class InfectionVisuals
         }
 
         // Si por alguna razón el prefab de intro no está disponible,
-        // aplicamos al menos el cuerpo correcto sin intentar animarlo.
+        // aplicamos al menos la presentación final correcta.
         if (!HudManager.InstanceExists ||
             HudManager.Instance.IntroPrefab == null)
         {
-            player.MyPhysics.SetBodyType(
-                InfectionMode.GetInfectedBodyType());
+            if (InfectionMode.ShouldUseHorseModel())
+            {
+                ApplyHorseWranglerOutfit(
+                    player);
+            }
+            else
+            {
+                player.MyPhysics.SetBodyType(
+                    InfectionMode.GetInfectedBodyType());
 
-            player.cosmetics.SetFlipX(
-                player.MyPhysics.FlipX);
+                ResetCosmeticsScale(
+                    player);
+
+                player.cosmetics.SetFlipX(
+                    player.MyPhysics.FlipX);
+            }
 
             return;
         }
 
         player.StartCoroutine(
-            CoTransformIntoSeeker(player));
+            CoTransformIntoSeeker(
+                player,
+                blockMovement));
     }
 
     public static void RemoveInfected(
@@ -51,14 +130,19 @@ public static class InfectionVisuals
         player.MyPhysics.SetBodyType(
             InfectionMode.GetSurvivorBodyType());
 
-        player.cosmetics.SetBodyCosmeticsVisible(true);
+        ResetCosmeticsScale(
+            player);
+
+        player.cosmetics.SetBodyCosmeticsVisible(
+            true);
 
         player.cosmetics.SetFlipX(
             player.MyPhysics.FlipX);
     }
 
     private static IEnumerator CoTransformIntoSeeker(
-        PlayerControl player)
+        PlayerControl player,
+        bool blockMovement)
     {
         var wasMoveable =
             player.moveable;
@@ -66,47 +150,125 @@ public static class InfectionVisuals
         var wasFacingLeft =
             player.MyPhysics.FlipX;
 
-        // Solo bloqueamos movimiento en el cliente dueño del jugador.
-        // Los demás clientes únicamente reproducen la presentación.
-        if (player.AmOwner)
+        // Solo bloqueamos movimiento al jugador dueño durante
+        // una conversión que ocurre dentro de la partida.
+        //
+        // El intro del Seeker administra su propio hide time.
+        if (blockMovement &&
+            player.AmOwner)
         {
             player.NetTransform.Halt();
             player.moveable = false;
         }
 
-        player.MyPhysics.SetBodyType(
-            InfectionMode.GetInfectedBodyType());
-
-        // Cambiar el BodyType puede dejar cosméticos mirando
-        // hacia la dirección anterior hasta que el jugador se mueva.
-        player.MyPhysics.FlipX =
-            wasFacingLeft;
-
-        player.cosmetics.SetFlipX(
-            wasFacingLeft);
-
         var introPrefab =
             HudManager.Instance.IntroPrefab;
 
-        if (AprilFoolsMode.ShouldHorseAround())
+        if (InfectionMode.ShouldUseHorseModel())
         {
-            yield return player.MyPhysics.CoAnimateCustom(
-                introPrefab.HnSSeekerSpawnHorseInGameAnim);
-        }
-        else if (AprilFoolsMode.ShouldLongAround())
-        {
-            yield return player.MyPhysics.CoAnimateCustom(
-                introPrefab.HnSSeekerSpawnLongInGameAnim);
+            // Ahora ShouldHorseAround() está realmente activo durante
+            // Infection, así que primero dejamos que Hide and Seek
+            // prepare sus cosméticos especiales de Horse Wrangler.
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.SetSpecialCosmetics(
+                    player);
+            }
+
+            // Fallback por seguridad.
+            //
+            // Si el GameManager activo no llegó a aplicar el outfit
+            // especial, lo hacemos manualmente.
+            if (player.CurrentOutfitType !=
+                PlayerOutfitType.HorseWrangler)
+            {
+                ApplyHorseWranglerOutfit(
+                    player);
+            }
+
+            // Horse Wrangler utiliza cuerpo Normal.
+            player.MyPhysics.SetBodyType(
+                PlayerBodyTypes.Normal);
+
+            // Cambiar de Horse a Normal puede dejar la escala
+            // del caballo aplicada a CosmeticsLayer.
+            ResetCosmeticsScale(
+                player);
+
+            player.MyPhysics.FlipX =
+                wasFacingLeft;
+
+            player.cosmetics.SetFlipX(
+                wasFacingLeft);
+
+            var animation =
+                introPrefab
+                    .HnSSeekerSpawnHorseInGameAnim;
+
+            // Esta transformación concreta de Horse Mode utiliza
+            // PlayerControl.AnimateCustom en el HnS real.
+            //
+            // CoPlayCustomAnimation reproducía correctamente el audio
+            // y la duración, pero no la presentación visual completa
+            // del Horse Wrangler.
+            player.AnimateCustom(
+                animation);
+
+            // AnimateCustom inicia su propia coroutine.
+            // Nosotros esperamos únicamente para devolver movimiento
+            // y refrescar el HUD cuando la transformación haya terminado.
+            yield return new WaitForSeconds(
+                animation.length);
+
+            // Nos aseguramos de no conservar escala de Horse
+            // después de terminar la transformación.
+            ResetCosmeticsScale(
+                player);
+
+            player.cosmetics.SetBodyCosmeticsVisible(
+                true);
+
+            player.MyPhysics.FlipX =
+                wasFacingLeft;
+
+            player.cosmetics.SetFlipX(
+                wasFacingLeft);
         }
         else
         {
-            // Igual que en la transformación HnS normal:
-            // los cosméticos desaparecen durante la animación.
-            // CoAnimateCustom vuelve a mostrarlos al terminar.
-            player.cosmetics.SetBodyCosmeticsVisible(false);
+            player.MyPhysics.SetBodyType(
+                InfectionMode.GetInfectedBodyType());
 
-            yield return player.MyPhysics.CoAnimateCustom(
-                introPrefab.HnSSeekerSpawnAnim);
+            ResetCosmeticsScale(
+                player);
+
+            // Cambiar el BodyType puede dejar cosméticos mirando
+            // hacia la dirección anterior hasta que el jugador se mueva.
+            player.MyPhysics.FlipX =
+                wasFacingLeft;
+
+            player.cosmetics.SetFlipX(
+                wasFacingLeft);
+
+            if (AprilFoolsMode.ShouldLongAround())
+            {
+                yield return player.MyPhysics.CoAnimateCustom(
+                    introPrefab.HnSSeekerSpawnLongInGameAnim);
+            }
+            else
+            {
+                // Igual que en la transformación HnS normal:
+                // los cosméticos desaparecen durante la animación.
+                // CoAnimateCustom vuelve a mostrarlos al terminar.
+                player.cosmetics.SetBodyCosmeticsVisible(
+                    false);
+
+                yield return player.MyPhysics.CoAnimateCustom(
+                    introPrefab.HnSSeekerSpawnAnim);
+            }
+
+            ResetCosmeticsScale(
+                player);
         }
 
         player.MyPhysics.FlipX =
@@ -114,14 +276,18 @@ public static class InfectionVisuals
 
         player.cosmetics.SetFlipX(
             wasFacingLeft);
+
+        if (blockMovement &&
+            player.AmOwner)
+        {
+            player.moveable =
+                wasMoveable;
+        }
 
         if (!player.AmOwner)
         {
             yield break;
         }
-
-        player.moveable =
-            wasMoveable;
 
         // La transformación HnS puede refrescar el HUD después
         // de que InfectedModifier ya haya habilitado los botones.
@@ -140,6 +306,7 @@ public static class InfectionVisuals
             CustomButtonSingleton<InfectButton>.Instance;
 
         infectButton.ResetCooldownAndOrEffect();
+
         infectButton.SetActive(
             true,
             player.Data.Role);
@@ -148,8 +315,23 @@ public static class InfectionVisuals
             CustomButtonSingleton<InfectedKillButton>.Instance;
 
         killButton.ResetCooldownAndOrEffect();
+
         killButton.SetActive(
             true,
             player.Data.Role);
+    }
+
+    /// <summary>
+    /// Restaura la escala visual correspondiente al BodyType actual.
+    ///
+    /// Cambiar de Horse a Normal puede dejar CosmeticsLayer utilizando
+    /// la escala del modelo anterior hasta el siguiente refresh vanilla.
+    /// </summary>
+    private static void ResetCosmeticsScale(
+        PlayerControl player)
+    {
+        player.cosmetics.SetScale(
+            player.MyPhysics.Animations.DefaultPlayerScale,
+            player.defaultCosmeticsScale);
     }
 }

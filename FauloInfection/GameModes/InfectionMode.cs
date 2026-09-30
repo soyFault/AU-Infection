@@ -29,6 +29,18 @@ public sealed class InfectionMode : HideAndSeekMode
         "FauloInfection.GameMode.Infection.Description";
 
     public override Color Color => InfectionColor;
+
+    /// <summary>
+    /// Determina si Infection debe usar la presentación
+    /// Horse/Wrangler de Hide and Seek.
+    ///
+    /// La opción propia del modo permite usarla aunque
+    /// April Fools no esté activo.
+    /// </summary>
+    public static bool ShouldUseHorseModel()
+    {
+        return AprilFoolsMode.ShouldHorseAround();
+    }
     
     /// <summary>
     /// Devuelve el tipo de cuerpo usado por cualquier miembro
@@ -36,7 +48,10 @@ public sealed class InfectionMode : HideAndSeekMode
     /// </summary>
     public static PlayerBodyTypes GetInfectedBodyType()
     {
-        if (AprilFoolsMode.ShouldHorseAround())
+        // El Wrangler de HnS utiliza el cuerpo Normal.
+        // Su apariencia especial proviene de las animaciones
+        // HorseWrangle/HnSSeekerSpawnHorse.
+        if (ShouldUseHorseModel())
         {
             return PlayerBodyTypes.Normal;
         }
@@ -54,7 +69,7 @@ public sealed class InfectionMode : HideAndSeekMode
     /// </summary>
     public static PlayerBodyTypes GetSurvivorBodyType()
     {
-        if (AprilFoolsMode.ShouldHorseAround())
+        if (ShouldUseHorseModel())
         {
             return PlayerBodyTypes.Horse;
         }
@@ -79,6 +94,8 @@ public sealed class InfectionMode : HideAndSeekMode
             ? GetInfectedBodyType()
             : GetSurvivorBodyType();
     }
+
+    
     
     /// <summary>
     /// Solo los supervivientes pueden utilizar consolas de tareas,
