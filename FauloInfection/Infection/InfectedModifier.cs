@@ -1,5 +1,4 @@
 using FauloInfection.Buttons;
-using FauloInfection.UI;
 using MiraAPI.Hud;
 using MiraAPI.Modifiers;
 using MiraAPI.Translation;
@@ -22,7 +21,7 @@ public sealed class InfectedModifier : BaseModifier
     public override void OnActivate()
     {
         base.OnActivate();
-        
+
         // Un jugador convertido deja inmediatamente de ser
         // un superviviente y no debe conservar sus tareas.
         Player.ClearTasks();
@@ -37,15 +36,11 @@ public sealed class InfectedModifier : BaseModifier
                 Array.Empty<byte>());
         }
 
-        // Every client that receives the synchronized modifier
-        // shows the infection notification.
-        // Cada cliente que recibe el modificador sincronizado
-        // muestra la notificación de infección.
-        if (InfectionManager.IsActive &&
-            HudManager.InstanceExists)
-        {
-            InfectionHud.ShowInfected(Player);
-        }
+        // La notificación visual no se dispara desde el modifier.
+        //
+        // InfectionTransformRpc es la ruta sincronizada de presentación:
+        // reproduce la transformación y muestra el popup exactamente una vez.
+        // Hacerlo también aquí creaba dos DeathPopupPrefab superpuestos.
 
         if (!Player.AmOwner ||
             Player.Data?.Role == null ||
@@ -60,7 +55,7 @@ public sealed class InfectedModifier : BaseModifier
         // ya puede ser consultado correctamente por los botones.
         refreshHudNextFixedUpdate = true;
     }
-    
+
     public override void FixedUpdate()
     {
         base.FixedUpdate();
@@ -102,7 +97,7 @@ public sealed class InfectedModifier : BaseModifier
     public override void OnDeactivate()
     {
         base.OnDeactivate();
-        
+
         refreshHudNextFixedUpdate = false;
 
         if (!Player.AmOwner ||

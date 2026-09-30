@@ -1,5 +1,6 @@
 using System;
 using FauloInfection.Options;
+using FauloInfection.UI;
 using MiraAPI.GameOptions;
 using MiraAPI.HnsReimplemented;
 using MiraAPI.HnsReimplemented.Options;
@@ -28,8 +29,6 @@ public static class InfectionHudController
     private static ObjectPoolBehavior? _pingPool;
     private static float _nextPingAt;
     private static float _hidePingsAt;
-    
-    private static int _infectionPopupCount;
 
     /// <summary>
     /// Obtiene el HnsMusicHandler que HideAndSeekMode
@@ -68,7 +67,6 @@ public static class InfectionHudController
         _nextDangerUpdateAt = 0f;
         _nextPingAt = 0f;
         _hidePingsAt = 0f;
-        _infectionPopupCount = 0;
 
         if (_pingPool != null)
         {
@@ -110,27 +108,17 @@ public static class InfectionHudController
             return;
         }
 
-        // Reutilizamos la presentación de HnS para mostrar
-        // visualmente que un jugador dejó de ser superviviente.
-        // Esto no marca al jugador como muerto.
-        HudManager.Instance.NotifyOfDeath();
-
-        var popup =
-            GameManagerCreator
-                .Instance
-                .HideAndSeekManagerPrefab
-                .DeathPopupPrefab;
-
-        _infectionPopupCount++;
-
-        var item =
-            Object.Instantiate(
-                popup,
-                HudManager.Instance.transform.parent);
-
-        item.Show(
-            player,
-            _infectionPopupCount);
+        // La presentación de infección vive en un único lugar.
+        //
+        // Antes esta ruta llamaba HudManager.NotifyOfDeath() y además
+        // creaba otro DeathPopupPrefab, mientras InfectedModifier
+        // mostraba un segundo popup traducido. El resultado era el
+        // texto de muerte superpuesto al texto de infección.
+        //
+        // InfectionTransformRpc ya sincroniza esta presentación a todos
+        // los clientes, así que aquí mostramos exactamente un popup.
+        InfectionHud.ShowInfected(
+            player);
     }
 
 
@@ -138,7 +126,7 @@ public static class InfectionHudController
         HudManager hud)
     {
         var now = Time.time;
-        
+
         UpdateTaskPanelVisibility(hud);
 
         if (now >= _nextTrackerUpdateAt)
@@ -156,10 +144,10 @@ public static class InfectionHudController
 
             UpdateDangerMeter(hud);
         }
-        
+
         UpdateAdrenalinePings();
     }
-    
+
     /// <summary>
     /// Oculta completamente el panel de tareas cuando
     /// el jugador no tiene tareas reales que mostrar.
@@ -180,7 +168,7 @@ public static class InfectionHudController
         var options =
             OptionGroupSingleton<InfectionOptions>
                 .Instance;
-        
+
         var hasPendingTasks = false;
 
         var tasks =
@@ -233,7 +221,7 @@ public static class InfectionHudController
         }
 
         tracker.gameObject.SetActive(true);
-        
+
         // Recorremos directamente la colección de jugadores.
         var removedSurvivorCount = 0;
 
@@ -378,6 +366,17 @@ public static class InfectionHudController
             meter.gameObject.SetActive(
                 false);
 
+            // El jugador puede convertirse cuando la música de peligro
+            // todavía tiene valores distintos de cero. HnsMusicHandler
+            // conserva esos valores hasta recibir otros nuevos, así que
+            // también debemos resetearlos al pasar al equipo infectado.
+            if (music != null)
+            {
+                music.SetMusicValues(
+                    0f,
+                    0f);
+            }
+
             return;
         }
 
@@ -408,7 +407,7 @@ public static class InfectionHudController
                 scaryDistance
             );
         }
-        
+
         // Buscamos directamente al infectado vivo más cercano.
         var closestDistanceSquared =
             float.MaxValue;
@@ -497,7 +496,7 @@ public static class InfectionHudController
                 dangerLevel2);
         }
     }
-    
+
     /// <summary>
     /// Durante Adrenalina, muestra periódicamente a los infectados
     /// la dirección de cada superviviente vivo.
