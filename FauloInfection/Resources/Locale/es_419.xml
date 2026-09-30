@@ -32,4 +32,7 @@ de que se agote el tiempo.</string>
     <string name="FauloInfection.Button.Kill">Matar</string>
     <string name="FauloInfection.GameOver.Infected.Win">¡Los infectados ganan!</string>
     <string name="FauloInfection.GameOver.Survivors.Win">¡Los supervivientes ganan!</string>
+
+    <string name="FauloInfection.Options.SurvivorFlashlightSize">Tamaño Linterna Tripulantes</string>
+    <string name="FauloInfection.Options.InfectedFlashlightSize">Tamaño Linterna infectados</string>
 </resources>

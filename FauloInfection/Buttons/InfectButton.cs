@@ -35,13 +35,20 @@ public sealed class InfectButton : CustomActionButton<PlayerControl>
 
         // Find the closest valid crewmate within the role's normal ability range.
         // Busca al tripulante válido más cercano dentro del alcance normal de la habilidad.
+        //
+        // Cuando usamos la visión HnS, el objetivo también debe estar
+        // dentro del cono hacia el que está apuntando la linterna.
         return localPlayer.GetClosestPlayer(
             includeImpostors: true,
             distance: Distance,
             ignoreColliders: false,
             includeGhosts: false,
             predicate: player =>
-                !InfectionManager.IsInfected(player));
+                !InfectionManager.IsInfected(player) &&
+                InfectionVisionController
+                    .IsTargetInsideFlashlight(
+                        localPlayer,
+                        player));
     }
 
     public override bool IsTargetValid(PlayerControl? target)
@@ -51,7 +58,11 @@ public sealed class InfectButton : CustomActionButton<PlayerControl>
                !target.Data.Disconnected &&
                !target.Data.IsDead &&
                !target.inVent &&
-               !InfectionManager.IsInfected(target);
+               !InfectionManager.IsInfected(target) &&
+               InfectionVisionController
+                   .IsTargetInsideFlashlight(
+                       PlayerControl.LocalPlayer,
+                       target);
     }
 
     public override void SetOutline(bool active)

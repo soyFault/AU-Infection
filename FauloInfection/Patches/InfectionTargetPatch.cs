@@ -5,7 +5,9 @@ using MiraAPI.GameOptions;
 
 namespace FauloInfection.Patches;
 
-[HarmonyPatch(typeof(ImpostorRole), nameof(ImpostorRole.IsValidTarget))]
+[HarmonyPatch(
+    typeof(ImpostorRole),
+    nameof(ImpostorRole.IsValidTarget))]
 internal static class InfectionTargetPatch
 {
     [HarmonyPostfix]
@@ -45,6 +47,21 @@ internal static class InfectionTargetPatch
         // tampoco pueda seleccionarlos cuando Friendly Fire está apagado.
         if (!options.FriendlyFire.Value &&
             InfectionManager.IsInfected(targetPlayer))
+        {
+            __result = false;
+            return;
+        }
+
+        // Cuando usamos la visión de HnS, el Kill del Seeker inicial
+        // también debe respetar hacia dónde apunta la linterna.
+        //
+        // Si el jugador está dentro del alcance normal pero fuera del cono,
+        // deja de ser un objetivo válido y el KillButton no debe seleccionarlo.
+        if (__result &&
+            !InfectionVisionController
+                .IsTargetInsideFlashlight(
+                    source,
+                    targetPlayer))
         {
             __result = false;
         }

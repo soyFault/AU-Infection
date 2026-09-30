@@ -57,6 +57,64 @@ public sealed class InfectionOptions : AbstractOptionGroup<InfectionMode>
             "FauloInfection.Options.UseHnsVision",
             true);
 
+    /// <summary>
+    /// Determines the width of the survivor flashlight cone
+    /// when Infection uses Hide and Seek vision.
+    ///
+    /// Determina el ancho del cono de linterna de los supervivientes
+    /// cuando Infection usa la visión de Hide and Seek.
+    /// </summary>
+    public ModdedNumberOption SurvivorFlashlightSize { get; set; } =
+        new(
+            "FauloInfection.Options.SurvivorFlashlightSize",
+            0.35f,
+            0.1f,
+            0.5f,
+            0.05f,
+            MiraNumberSuffixes.Multiplier,
+            "0.00")
+        {
+            // Flashlight size only matters while the HnS flashlight
+            // vision system is active.
+            //
+            // El tamaño de la linterna solo tiene sentido mientras
+            // el sistema de visión HnS esté activo.
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .UseHnsVision
+                    .Value,
+        };
+
+    /// <summary>
+    /// Determines the width of the infected flashlight cone
+    /// when Infection uses Hide and Seek vision.
+    ///
+    /// Determina el ancho del cono de linterna de los infectados
+    /// cuando Infection usa la visión de Hide and Seek.
+    /// </summary>
+    public ModdedNumberOption InfectedFlashlightSize { get; set; } =
+        new(
+            "FauloInfection.Options.InfectedFlashlightSize",
+            0.35f,
+            0.1f,
+            0.5f,
+            0.05f,
+            MiraNumberSuffixes.Multiplier,
+            "0.00")
+        {
+            // Flashlight size only matters while the HnS flashlight
+            // vision system is active.
+            //
+            // El tamaño de la linterna solo tiene sentido mientras
+            // el sistema de visión HnS esté activo.
+            Visible = () =>
+                OptionGroupSingleton<InfectionOptions>
+                    .Instance
+                    .UseHnsVision
+                    .Value,
+        };
+
     public ModdedToggleOption NotifyInfections { get; set; } =
         new(
             "FauloInfection.Options.NotifyInfections",

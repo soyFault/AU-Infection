@@ -2,7 +2,6 @@ using FauloInfection.Infection;
 using FauloInfection.Options;
 using HarmonyLib;
 using MiraAPI.GameOptions;
-using MiraAPI.HnsReimplemented.Options;
 
 namespace FauloInfection.Patches;
 
@@ -85,22 +84,16 @@ internal static class InfectionAdjustLightingPatch
             !__instance.Data.IsDead &&
             LobbyBehaviour.Instance == null;
 
-        float flashlightSize =
-            0f;
-
-        if (useFlashlight)
-        {
-            flashlightSize =
-                InfectionManager.IsInfected(__instance)
-                    ? OptionGroupSingleton<HnsImpostorOptions>
-                        .Instance
-                        .ImpostorFlashlightSize
-                        .Value
-                    : OptionGroupSingleton<HnsCrewmateOptions>
-                        .Instance
-                        .CrewmateFlashlightSize
-                        .Value;
-        }
+        // HnS permite tamaños diferentes para Crewmate e Impostor.
+        //
+        // Infection conserva esa separación, pero utiliza sus propias
+        // opciones de supervivientes e infectados para no depender
+        // de las opciones internas del modo HnS de MiraAPI.
+        var flashlightSize =
+            useFlashlight
+                ? InfectionVisionController
+                    .GetFlashlightSize(__instance)
+                : 0f;
 
         __instance.SetFlashlightInputMethod();
 
@@ -148,10 +141,12 @@ internal static class InfectionLightRadiusPatch
         var options =
             OptionGroupSingleton<InfectionOptions>
                 .Instance;
-
+        
         // Cuando usamos la visión de Hide and Seek,
-        // SetupLightingForGameplay y la linterna son
-        // responsables de la presentación de visión.
+        // la linterna es el sistema de visión autoritativo.
+        //
+        // Los multiplicadores propios de Infection solo
+        // se aplican cuando esa linterna está desactivada.
         if (options.UseHnsVision.Value)
         {
             return;
@@ -160,6 +155,7 @@ internal static class InfectionLightRadiusPatch
         float vision;
 
         // El Impostor base es el Seeker inicial.
+        // Debe usar su ajuste independiente.
         if (player.Role?.IsImpostor == true)
         {
             vision =
@@ -167,8 +163,8 @@ internal static class InfectionLightRadiusPatch
                     .InitialInfectedVision
                     .Value;
         }
-        // Los infectados convertidos pueden conservar un rol
-        // base de Crewmate/Engineer.
+        // Un infectado convertido conserva normalmente
+        // su rol base, así que lo identificamos por el estado de Infection.
         else if (player.Object != null &&
                  InfectionManager.IsInfected(
                      player.Object))

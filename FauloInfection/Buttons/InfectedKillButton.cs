@@ -52,15 +52,23 @@ public sealed class InfectedKillButton :
             predicate: player =>
                 InfectionManager.CanKillTarget(
                     localPlayer,
-                    player));
+                    player) &&
+                InfectionVisionController
+                    .IsTargetInsideFlashlight(
+                        localPlayer,
+                        player));
     }
 
     public override bool IsTargetValid(
         PlayerControl? target)
     {
         return InfectionManager.CanKillTarget(
-            PlayerControl.LocalPlayer,
-            target);
+                   PlayerControl.LocalPlayer,
+                   target) &&
+               InfectionVisionController
+                   .IsTargetInsideFlashlight(
+                       PlayerControl.LocalPlayer,
+                       target);
     }
 
     public override void SetOutline(bool active)

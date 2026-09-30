@@ -31,4 +31,7 @@
     <string name="FauloInfection.Button.Kill">Kill</string>
     <string name="FauloInfection.GameOver.Infected.Win">Infected win!</string>
     <string name="FauloInfection.GameOver.Survivors.Win">Survivors win!</string>
+
+    <string name="FauloInfection.Options.SurvivorFlashlightSize">Survivor Flashlight Size</string>
+    <string name="FauloInfection.Options.InfectedFlashlightSize">Infected Flashlight Size</string>
 </resources>
